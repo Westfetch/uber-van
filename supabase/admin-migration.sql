@@ -21,6 +21,10 @@ values (
   'Admin'
 ) on conflict (email) do nothing;
 
+-- ── WebAuthn columns ────────────────────────────────────────────────────────
+alter table admins add column if not exists webauthn_credentials jsonb;
+alter table admins add column if not exists webauthn_challenge text;
+
 -- ── Performance indexes ─────────────────────────────────────────────────────
 create index if not exists idx_jobs_move_date     on jobs(move_date);
 create index if not exists idx_payouts_status     on payouts(status);
