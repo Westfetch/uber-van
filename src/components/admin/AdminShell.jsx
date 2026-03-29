@@ -26,7 +26,7 @@ export default function AdminShell() {
     const token = localStorage.getItem('admin_token');
     if (!token) { setChecking(false); return; }
 
-    fetch('/api/admin-verify', {
+    fetch('/api/admin-auth', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)

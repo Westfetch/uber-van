@@ -1,11 +1,13 @@
 // api/driver-auth.js
-// Driver first login. One-time setup code (SHA-256 hashed in DB) → JWT token.
-//
-// POST { name, setupCode }
-// Returns { token, driver: { id, name, phone, depot_postcode, van_size, online } }
+// POST — Driver first login. One-time setup code (SHA-256 hashed in DB) → JWT token.
+//   Body: { name, setupCode }
+//   Returns: { token, driver }
+// GET  — Verify stored token, return fresh driver data.
+//   Headers: Authorization: Bearer <token>
+//   Returns: { driver }
 
 import crypto from 'crypto';
-import { getSupabaseAdmin, signDriverToken } from './_lib/auth.js';
+import { getSupabaseAdmin, signDriverToken, verifyDriver } from './_lib/auth.js';
 
 const SAFE_COLS = 'id, name, phone, depot_postcode, van_size, online, push_subscription';
 
@@ -14,6 +16,23 @@ function hashCode(code) {
 }
 
 export default async function handler(req, res) {
+  // GET — verify token
+  if (req.method === 'GET') {
+    const caller = await verifyDriver(req);
+    if (!caller) return res.status(401).json({ error: 'Unauthorized' });
+
+    const admin = getSupabaseAdmin();
+    const { data: driver, error } = await admin
+      .from('drivers')
+      .select(SAFE_COLS)
+      .eq('id', caller.id)
+      .maybeSingle();
+
+    if (error || !driver) return res.status(404).json({ error: 'Driver not found' });
+    return res.json({ driver });
+  }
+
+  // POST — login with setup code
   if (req.method !== 'POST') return res.status(405).end();
 
   const { name, setupCode } = req.body || {};

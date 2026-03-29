@@ -12,7 +12,7 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/admin-job?id=${jobId}`, {
+    fetch(`/api/admin?action=job&id=${jobId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)

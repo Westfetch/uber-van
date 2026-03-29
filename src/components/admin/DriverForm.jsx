@@ -20,7 +20,7 @@ export default function DriverForm() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/admin-driver-create', {
+      const res = await fetch('/api/admin?action=driver-create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form),

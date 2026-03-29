@@ -15,7 +15,7 @@ export default function App() {
     const token = localStorage.getItem('driver_token');
     if (!token) { setChecking(false); return; }
 
-    fetch('/api/driver-verify', {
+    fetch('/api/driver-auth', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)

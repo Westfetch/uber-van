@@ -28,7 +28,8 @@ export default function PayoutList() {
     if (to)   params.set('to', to);
 
     try {
-      const res = await fetch(`/api/admin-payouts?${params}`, {
+      params.set('action', 'payouts');
+      const res = await fetch(`/api/admin?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();

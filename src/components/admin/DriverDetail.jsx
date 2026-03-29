@@ -15,7 +15,7 @@ export default function DriverDetail() {
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/admin-driver?id=${driverId}`, {
+    fetch(`/api/admin?action=driver&id=${driverId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)
@@ -27,7 +27,7 @@ export default function DriverDetail() {
   async function generateCode() {
     setGenerating(true);
     try {
-      const res = await fetch('/api/admin-driver-setup-code', {
+      const res = await fetch('/api/admin?action=driver-setup-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ driver_id: driverId }),

@@ -29,7 +29,8 @@ export default function JobPipeline() {
     if (to)     params.set('to', to);
 
     try {
-      const res = await fetch(`/api/admin-jobs?${params}`, {
+      params.set('action', 'jobs');
+      const res = await fetch(`/api/admin?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();

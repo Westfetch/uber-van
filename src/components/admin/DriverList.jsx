@@ -10,7 +10,7 @@ export default function DriverList() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin-drivers', {
+    fetch('/api/admin?action=drivers', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : { drivers: [] })
