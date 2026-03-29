@@ -4,8 +4,11 @@
 
 import crypto from 'crypto';
 import { verifyAdmin, getSupabaseAdmin } from './_lib/auth.js';
+import cors from './_lib/cors.js';
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
+
   const admin = await verifyAdmin(req);
   if (!admin) return res.status(401).json({ error: 'Unauthorized' });
 

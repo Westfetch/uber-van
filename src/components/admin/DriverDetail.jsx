@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
-import api from '../../lib/api.js';
+import api, { APP_ORIGIN } from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
 import { s, colors, statusColors } from './styles.js';
 
@@ -123,7 +123,7 @@ export default function DriverDetail() {
     }
     if (!code) { setInviteMsg('Failed to generate code'); return; }
 
-    const landingUrl = `${window.location.origin}/driver/get-started`;
+    const landingUrl = `${APP_ORIGIN}/driver/get-started`;
     const message = `You've been invited to drive with us! Get the app: ${landingUrl}\n\nYour name: ${data.driver.name}\nYour login code: ${code}\n(Code expires in 48h, one-time use)`;
 
     try {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
+import api from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
 import { s, colors } from './styles.js';
 
@@ -30,7 +31,7 @@ export default function JobPipeline() {
 
     try {
       params.set('action', 'jobs');
-      const res = await fetch(`/api/admin?${params}`, {
+      const res = await api(`/api/admin?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();

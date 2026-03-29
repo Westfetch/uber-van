@@ -3,8 +3,10 @@
 // GET /api/driver-data?type=offer&id=:offerId
 
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
+import cors from './_lib/cors.js';
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'GET') return res.status(405).end();
 
   const caller = await verifyDriver(req);

@@ -8,6 +8,7 @@
 
 import crypto from 'crypto';
 import { getSupabaseAdmin, signDriverToken, verifyDriver } from './_lib/auth.js';
+import cors from './_lib/cors.js';
 
 const SAFE_COLS = 'id, name, phone, depot_postcode, van_size, online, push_subscription, approval_status';
 
@@ -16,6 +17,8 @@ function hashCode(code) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
+
   // GET — verify token
   if (req.method === 'GET') {
     const caller = await verifyDriver(req);

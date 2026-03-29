@@ -7,6 +7,7 @@
 // POST ?action=webauthn-auth          → authenticate with biometric
 
 import bcrypt from 'bcryptjs';
+import cors from './_lib/cors.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -24,6 +25,8 @@ function getRpConfig(req) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
+
   const sb     = getSupabaseAdmin();
   const action = req.query.action;
 
