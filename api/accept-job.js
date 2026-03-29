@@ -5,6 +5,7 @@
 // Authorization: Bearer <driver-token>
 // Returns { ok: true, job }
 
+import Stripe from 'stripe';
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
 
 export default async function handler(req, res) {
@@ -40,7 +41,7 @@ export default async function handler(req, res) {
     .update({ status: 'accepted', driver_id: caller.id, accepted_at: new Date().toISOString() })
     .eq('id', offer.job_id)
     .eq('status', 'pending_acceptance')
-    .select('id, pickup_postcode, destination_postcode, move_date, start_time, customer_quote_gbp, deposit_gbp, balance_gbp, context_block, quote_data, effective_volume_cuft, van_loads, crew_required')
+    .select('id, pickup_postcode, destination_postcode, move_date, start_time, customer_quote_gbp, deposit_gbp, balance_gbp, context_block, quote_data, effective_volume_cuft, van_loads, crew_required, stripe_payment_intent_id')
     .maybeSingle();
 
   if (jobErr || !job) return res.status(409).json({ error: 'Job no longer available' });
@@ -58,6 +59,12 @@ export default async function handler(req, res) {
     .eq('job_id', offer.job_id)
     .eq('status', 'pending')
     .neq('id', offer_id);
+
+  // Capture the held deposit via Stripe
+  if (job.stripe_payment_intent_id) {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    await stripe.paymentIntents.capture(job.stripe_payment_intent_id);
+  }
 
   // Audit log
   await admin.from('job_events').insert({
