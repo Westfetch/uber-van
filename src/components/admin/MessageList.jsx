@@ -1,9 +1,9 @@
-import { useState, useEffect, useContext } from 'react';
-import { AdminContext } from './AdminContext.jsx';
+import { useState, useEffect } from 'react';
+import { useAdmin } from './AdminContext.jsx';
 import { s, colors } from './styles.js';
 
 export default function MessageList() {
-  const { token } = useContext(AdminContext);
+  const { token } = useAdmin();
   const [messages, setMessages] = useState([]);
   const [unread, setUnread] = useState(0);
   const [total, setTotal] = useState(0);
