@@ -152,6 +152,15 @@ create table if not exists payouts (
   created_at          timestamptz default now()
 );
 
+-- ── 8. platform_config ──────────────────────────────────────────────────────
+-- Singleton table for runtime-editable pricing constants.
+-- The wizard reads this instead of hardcoded values.
+create table if not exists platform_config (
+  id         int primary key default 1 check (id = 1),
+  pricing    jsonb not null default '{}',
+  updated_at timestamptz default now()
+);
+
 -- ── Realtime ──────────────────────────────────────────────────────────────────
 -- Enable realtime on tables drivers poll / customers track
 alter publication supabase_realtime add table jobs;

@@ -35,6 +35,9 @@ export default async function handler(req, res) {
     case 'job-cancel':     return handleJobCancel(req, res, sb);
     case 'job-status-update': return handleJobStatusUpdate(req, res, sb);
     case 'payout-update':  return handlePayoutUpdate(req, res, sb);
+    case 'config':         return handleConfig(req, res, sb);
+    case 'config-update':  return handleConfigUpdate(req, res, sb);
+    case 'funnel-update':  return handleFunnelUpdate(req, res, sb);
     case 'export':         return handleExport(req, res, sb);
     default:               return res.status(400).json({ error: `Unknown action: ${action}` });
   }
@@ -478,6 +481,61 @@ async function handleExport(req, res, sb) {
   }
 
   res.status(400).json({ error: 'type must be jobs, payouts, or drivers' });
+}
+
+// ── Platform config ────────────────────────────────────────────────────────
+async function handleConfig(req, res, sb) {
+  const [configRes, funnelsRes] = await Promise.all([
+    sb.from('platform_config').select('pricing, updated_at').eq('id', 1).single(),
+    sb.from('funnels').select('id, name, slug, depot_postcode, platform_fee_pct').order('name'),
+  ]);
+  res.json({
+    pricing: configRes.data?.pricing || {},
+    updated_at: configRes.data?.updated_at || null,
+    funnels: funnelsRes.data || [],
+  });
+}
+
+async function handleConfigUpdate(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const updates = req.body?.pricing;
+  if (!updates || typeof updates !== 'object') return res.status(400).json({ error: 'pricing object required' });
+
+  // Fetch current, deep-merge
+  const { data: current } = await sb.from('platform_config').select('pricing').eq('id', 1).single();
+  const merged = { ...(current?.pricing || {}), ...updates };
+  // Merge nested objects (packing_buffers, parking_rates, etc.)
+  for (const key of Object.keys(updates)) {
+    if (updates[key] && typeof updates[key] === 'object' && !Array.isArray(updates[key]) && current?.pricing?.[key]) {
+      merged[key] = { ...current.pricing[key], ...updates[key] };
+    }
+  }
+
+  const { error } = await sb.from('platform_config')
+    .update({ pricing: merged, updated_at: new Date().toISOString() })
+    .eq('id', 1);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ pricing: merged });
+}
+
+async function handleFunnelUpdate(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const { funnel_id, platform_fee_pct, depot_postcode } = req.body || {};
+  if (!funnel_id) return res.status(400).json({ error: 'funnel_id required' });
+
+  const updates = {};
+  if (platform_fee_pct !== undefined) {
+    const pct = parseFloat(platform_fee_pct);
+    if (isNaN(pct) || pct < 0 || pct > 100) return res.status(400).json({ error: 'platform_fee_pct must be 0-100' });
+    updates.platform_fee_pct = pct;
+  }
+  if (depot_postcode !== undefined) updates.depot_postcode = depot_postcode;
+
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+  const { error } = await sb.from('funnels').update(updates).eq('id', funnel_id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
 }
 
 function sendCSV(res, filename, headers, rows) {
