@@ -5,8 +5,7 @@ const config: CapacitorConfig = {
   appName: 'VanHQ',
   webDir: 'dist',
   server: {
-    // For dev live reload, uncomment and set to your local IP:
-    // url: 'http://192.168.x.x:5174',
+    url: 'https://uber-van.vercel.app',
     androidScheme: 'https',
   },
 };

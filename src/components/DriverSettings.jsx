@@ -258,7 +258,7 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
           {settings?.phone && <p style={s.accountRow}><span style={s.accountLabel}>Phone</span> {settings.phone}</p>}
           <button
             style={{ ...s.btn, background: 'transparent', border: '1px solid #333', color: '#888', marginTop: '12px' }}
-            onClick={() => { localStorage.removeItem('driver_token'); onLogout(); }}
+            onClick={() => { localStorage.removeItem('driver_token'); localStorage.removeItem('driver_name'); onLogout(); }}
           >
             Sign out
           </button>

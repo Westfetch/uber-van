@@ -1,6 +1,6 @@
 // api/_lib/auth.js
 // Driver auth only — no customer accounts in the driver app.
-// Driver token: HS256-style signed JWT, 4-hour TTL, stored in localStorage.
+// Driver token: HS256-style signed JWT, 90-day TTL, stored in localStorage.
 //
 // Usage in any handler:
 //   const driver = await verifyDriver(req);
@@ -27,7 +27,7 @@ function getSecret() {
 export function signDriverToken(driverId) {
   const secret  = getSecret();
   const header  = b64url(Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
-  const exp     = Math.floor(Date.now() / 1000) + 4 * 60 * 60;
+  const exp     = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60; // 90 days
   const payload = b64url(Buffer.from(JSON.stringify({ sub: driverId, role: 'driver', exp })));
   const sig     = b64url(
     crypto.createHmac('sha256', secret).update(`${header}.${payload}`).digest()
