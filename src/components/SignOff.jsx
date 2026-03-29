@@ -38,7 +38,7 @@ export default function SignOff({ job, onComplete }) {
   async function sendSignLink() {
     try {
       const token = localStorage.getItem('driver_token');
-      const res = await api('/api/customer-signoff', {
+      const res = await api('/api/booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ job_id: job.id, action: 'request' }),

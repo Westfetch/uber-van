@@ -136,7 +136,7 @@ export default function StatusInProgress({ booking }) {
             onClick={() => {
               // Will be wired in Phase 5
               const token = sessionStorage.getItem(`booking_token_${booking.id}`);
-              api('/api/customer-signoff', {
+              api('/api/booking', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: booking.id, token, action: 'confirm' }),
