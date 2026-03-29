@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
 import api from '../../lib/api.js';
+import { exportCSV } from './exportCSV.js';
 import { s, colors, statusColors } from './styles.js';
 
 export default function DriverList() {
@@ -24,7 +25,10 @@ export default function DriverList() {
     <div>
       <div style={s.header}>
         <h1 style={s.h1}>Drivers</h1>
-        <button style={s.btn} onClick={() => navigate('/admin/drivers/new')}>Add driver</button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button style={s.btnOutline} onClick={() => exportCSV('drivers', token)}>Export CSV</button>
+          <button style={s.btn} onClick={() => navigate('/admin/drivers/new')}>Add driver</button>
+        </div>
       </div>
 
       <div style={s.card}>

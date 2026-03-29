@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
 import api from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
+import { exportCSV } from './exportCSV.js';
 import { s, colors } from './styles.js';
 
 const STATUSES = ['all', 'pending_payment', 'pending_acceptance', 'accepted', 'in_progress', 'completed', 'cancelled', 'refunded'];
@@ -55,7 +56,10 @@ export default function JobPipeline() {
     <div>
       <div style={s.header}>
         <h1 style={s.h1}>Jobs</h1>
-        <span style={{ color: colors.muted, fontSize: '0.85rem' }}>{total} total</span>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <span style={{ color: colors.muted, fontSize: '0.85rem' }}>{total} total</span>
+          <button style={s.btnOutline} onClick={() => exportCSV('jobs', token, { status, from, to, search })}>Export CSV</button>
+        </div>
       </div>
 
       {/* Status tabs */}

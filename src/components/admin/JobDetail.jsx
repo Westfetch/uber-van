@@ -5,6 +5,8 @@ import api from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
 import { s, colors } from './styles.js';
 
+const JOB_STATUSES = ['pending_payment', 'pending_acceptance', 'accepted', 'in_progress', 'completed', 'cancelled', 'refunded'];
+
 export default function JobDetail() {
   const { jobId }  = useParams();
   const { token }  = useAdmin();
@@ -12,20 +14,82 @@ export default function JobDetail() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Action state
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [showCancel, setShowCancel] = useState(false);
+  const [statusOverride, setStatusOverride] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [showOverride, setShowOverride] = useState(false);
+  const [actionMsg, setActionMsg] = useState('');
+
   useEffect(() => {
-    api(`/api/admin?action=job&id=${jobId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setJob(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    loadJob();
   }, [jobId, token]);
+
+  async function loadJob() {
+    setLoading(true);
+    const res = await api(`/api/admin?action=job&id=${jobId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = res.ok ? await res.json() : null;
+    setJob(data);
+    setLoading(false);
+  }
+
+  async function cancelJob() {
+    setCancelling(true);
+    try {
+      const res = await api('/api/admin?action=job-cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ job_id: jobId, reason: cancelReason }),
+      });
+      if (res.ok) {
+        setShowCancel(false);
+        setCancelReason('');
+        setActionMsg('Job cancelled');
+        loadJob();
+      } else {
+        const err = await res.json();
+        setActionMsg(err.error || 'Failed to cancel');
+      }
+    } catch {
+      setActionMsg('Failed to cancel');
+    } finally {
+      setCancelling(false);
+      setTimeout(() => setActionMsg(''), 3000);
+    }
+  }
+
+  async function updateStatus() {
+    try {
+      const res = await api('/api/admin?action=job-status-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ job_id: jobId, status: statusOverride, reason: overrideReason }),
+      });
+      if (res.ok) {
+        setShowOverride(false);
+        setStatusOverride('');
+        setOverrideReason('');
+        setActionMsg('Status updated');
+        loadJob();
+      } else {
+        const err = await res.json();
+        setActionMsg(err.error || 'Failed to update');
+      }
+    } catch {
+      setActionMsg('Failed to update');
+    }
+    setTimeout(() => setActionMsg(''), 3000);
+  }
 
   if (loading) return <p style={{ color: colors.muted, padding: '40px', textAlign: 'center' }}>Loading...</p>;
   if (!job) return <p style={{ color: colors.error, padding: '40px', textAlign: 'center' }}>Job not found</p>;
 
   const j = job.job;
+  const cancellable = ['pending_payment', 'pending_acceptance', 'accepted'].includes(j.status);
 
   return (
     <div>
@@ -39,8 +103,90 @@ export default function JobDetail() {
             {j.pickup_postcode} → {j.destination_postcode} &middot; {j.move_date}
           </p>
         </div>
-        <StatusBadge status={j.status} />
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <StatusBadge status={j.status} />
+          {cancellable && (
+            <button
+              style={{ ...s.btnOutline, color: colors.error, borderColor: colors.error }}
+              onClick={() => setShowCancel(!showCancel)}
+            >
+              Cancel job
+            </button>
+          )}
+          <button
+            style={s.btnOutline}
+            onClick={() => setShowOverride(!showOverride)}
+          >
+            Override status
+          </button>
+        </div>
       </div>
+
+      {/* Action feedback */}
+      {actionMsg && (
+        <p style={{ color: actionMsg.includes('Failed') ? colors.error : '#4ade80', fontSize: '0.85rem', textAlign: 'center', margin: '0 0 8px' }}>{actionMsg}</p>
+      )}
+
+      {/* Cancel form */}
+      {showCancel && (
+        <div style={{ ...s.card, border: `1px solid ${colors.error}` }}>
+          <p style={{ ...s.label, margin: '0 0 8px' }}>Cancel reason (optional)</p>
+          <input
+            value={cancelReason}
+            onChange={e => setCancelReason(e.target.value)}
+            placeholder="e.g. Customer requested cancellation"
+            style={{ ...s.input, marginBottom: 8 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={{ ...s.btn, background: colors.error, opacity: cancelling ? 0.5 : 1 }}
+              onClick={cancelJob}
+              disabled={cancelling}
+            >
+              {cancelling ? 'Cancelling...' : 'Confirm cancellation'}
+            </button>
+            <button style={s.btnOutline} onClick={() => setShowCancel(false)}>Dismiss</button>
+          </div>
+        </div>
+      )}
+
+      {/* Status override form */}
+      {showOverride && (
+        <div style={{ ...s.card, border: `1px solid ${colors.accent}` }}>
+          <p style={{ ...s.label, margin: '0 0 8px' }}>Override job status</p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+            {JOB_STATUSES.filter(st => st !== j.status).map(st => (
+              <button
+                key={st}
+                onClick={() => setStatusOverride(st)}
+                style={{
+                  ...s.filterTab,
+                  ...(statusOverride === st ? s.filterTabActive : {}),
+                  fontSize: '0.75rem',
+                }}
+              >
+                {st.replace(/_/g, ' ')}
+              </button>
+            ))}
+          </div>
+          <input
+            value={overrideReason}
+            onChange={e => setOverrideReason(e.target.value)}
+            placeholder="Reason for override"
+            style={{ ...s.input, marginBottom: 8 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={{ ...s.btn, opacity: !statusOverride ? 0.5 : 1 }}
+              onClick={updateStatus}
+              disabled={!statusOverride}
+            >
+              Apply override
+            </button>
+            <button style={s.btnOutline} onClick={() => setShowOverride(false)}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {/* Grid: Customer + Financials */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

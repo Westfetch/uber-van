@@ -60,7 +60,7 @@ export default function App() {
         } />
         <Route path="/" element={
           driver
-            ? <DriverDashboard driver={driver} onLogout={() => setDriver(null)} />
+            ? <DriverDashboard driver={driver} onLogout={() => setDriver(null)} onDriverUpdate={u => setDriver(d => ({ ...d, ...u }))} />
             : <Navigate to="/login" replace />
         } />
         <Route path="*" element={<Navigate to="/" replace />} />

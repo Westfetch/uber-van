@@ -5,6 +5,8 @@ import api from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
 import { s, colors } from './styles.js';
 
+import { exportCSV } from './exportCSV.js';
+
 const STATUSES = ['all', 'pending', 'transferred', 'failed'];
 
 export default function PayoutList() {
@@ -49,10 +51,20 @@ export default function PayoutList() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [status, from, to]);
 
+  async function updatePayout(payoutId, newStatus) {
+    await api('/api/admin?action=payout-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ payout_id: payoutId, status: newStatus }),
+    });
+    load();
+  }
+
   return (
     <div>
       <div style={s.header}>
         <h1 style={s.h1}>Payouts</h1>
+        <button style={s.btnOutline} onClick={() => exportCSV('payouts', token, { status, from, to })}>Export CSV</button>
       </div>
 
       {/* Summary cards */}
@@ -111,6 +123,7 @@ export default function PayoutList() {
                 <th style={s.th}>Fee</th>
                 <th style={s.th}>Net</th>
                 <th style={s.th}>Status</th>
+                <th style={s.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -118,17 +131,24 @@ export default function PayoutList() {
                 <tr
                   key={p.id}
                   style={s.trClickable}
-                  onClick={() => navigate(`/admin/jobs/${p.job_id}`)}
                   onMouseEnter={e => e.currentTarget.style.background = '#1e1e1e'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <td style={s.td}>{p.move_date || '-'}</td>
-                  <td style={s.td}>{p.driver_name || '-'}</td>
-                  <td style={{ ...s.td, color: colors.muted, fontSize: '0.8rem' }}>{p.funnel_job_ref || '-'}</td>
-                  <td style={s.td}>£{Number(p.gross_gbp).toFixed(2)}</td>
-                  <td style={{ ...s.td, color: colors.accent }}>£{Number(p.platform_fee_gbp).toFixed(2)}</td>
-                  <td style={s.td}>£{Number(p.net_gbp).toFixed(2)}</td>
+                  <td style={s.td} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>{p.move_date || '-'}</td>
+                  <td style={s.td} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>{p.driver_name || '-'}</td>
+                  <td style={{ ...s.td, color: colors.muted, fontSize: '0.8rem' }} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>{p.funnel_job_ref || '-'}</td>
+                  <td style={s.td} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>£{Number(p.gross_gbp).toFixed(2)}</td>
+                  <td style={{ ...s.td, color: colors.accent }} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>£{Number(p.platform_fee_gbp).toFixed(2)}</td>
+                  <td style={s.td} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>£{Number(p.net_gbp).toFixed(2)}</td>
                   <td style={s.td}><StatusBadge status={p.status} /></td>
+                  <td style={s.td}>
+                    {p.status === 'pending' && (
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button style={{ ...s.btnSmall, fontSize: '0.7rem', padding: '4px 8px' }} onClick={() => updatePayout(p.id, 'transferred')}>Transferred</button>
+                        <button style={{ ...s.btnOutline, fontSize: '0.7rem', padding: '4px 8px', color: colors.error, borderColor: colors.error }} onClick={() => updatePayout(p.id, 'failed')}>Failed</button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

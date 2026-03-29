@@ -5,6 +5,8 @@
 import crypto from 'crypto';
 import { verifyAdmin, getSupabaseAdmin } from './_lib/auth.js';
 import cors from './_lib/cors.js';
+import { sendEmail } from './_lib/email.js';
+import { sendSMS } from './_lib/sms.js';
 
 export default async function handler(req, res) {
   if (cors(req, res)) return;
@@ -25,9 +27,15 @@ export default async function handler(req, res) {
     case 'driver-update':     return handleDriverUpdate(req, res, sb);
     case 'driver-reset':      return handleDriverReset(req, res, sb);
     case 'payouts':      return handlePayouts(req, res, sb);
-    case 'messages':     return handleMessages(req, res, sb);
-    case 'message-read': return handleMessageRead(req, res, sb);
-    default:             return res.status(400).json({ error: `Unknown action: ${action}` });
+    case 'messages':       return handleMessages(req, res, sb);
+    case 'message-read':   return handleMessageRead(req, res, sb);
+    case 'message-reply':  return handleMessageReply(req, res, sb, admin);
+    case 'message-replies': return handleMessageReplies(req, res, sb);
+    case 'job-cancel':     return handleJobCancel(req, res, sb);
+    case 'job-status-update': return handleJobStatusUpdate(req, res, sb);
+    case 'payout-update':  return handlePayoutUpdate(req, res, sb);
+    case 'export':         return handleExport(req, res, sb);
+    default:               return res.status(400).json({ error: `Unknown action: ${action}` });
   }
 }
 
@@ -185,10 +193,17 @@ async function handleDriverSetupCode(req, res, sb) {
 async function handleDriverUpdate(req, res, sb) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { driver_id, approval_status, insurance_verified, insurance_expiry, license_verified, dbs_verified, notes } = req.body || {};
+  const { driver_id, name, phone, email, van_size, depot_postcode, approval_status, insurance_verified, insurance_expiry, license_verified, dbs_verified, notes } = req.body || {};
   if (!driver_id) return res.status(400).json({ error: 'driver_id required' });
 
   const updates = {};
+  // Basic driver info
+  if (name !== undefined)           updates.name = name;
+  if (phone !== undefined)          updates.phone = phone || null;
+  if (email !== undefined)          updates.email = email || null;
+  if (van_size !== undefined)       updates.van_size = van_size;
+  if (depot_postcode !== undefined) updates.depot_postcode = depot_postcode;
+  // Onboarding fields
   if (approval_status !== undefined)   updates.approval_status = approval_status;
   if (insurance_verified !== undefined) updates.insurance_verified = insurance_verified;
   if (insurance_expiry !== undefined)   updates.insurance_expiry = insurance_expiry || null;
@@ -270,7 +285,7 @@ async function handlePayouts(req, res, sb) {
 
 // ── Messages list ─────────────────────────────────────────────────────────────
 async function handleMessages(req, res, sb) {
-  const { read, page = '1', limit = '20' } = req.query;
+  const { read, sort = 'newest', search, page = '1', limit = '20' } = req.query;
   const pg     = Math.max(1, parseInt(page));
   const lim    = Math.min(100, Math.max(1, parseInt(limit)));
   const offset = (pg - 1) * lim;
@@ -278,11 +293,12 @@ async function handleMessages(req, res, sb) {
   let query = sb
     .from('messages')
     .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: sort === 'oldest' })
     .range(offset, offset + lim - 1);
 
   if (read === 'true')  query = query.eq('read', true);
   if (read === 'false') query = query.eq('read', false);
+  if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,message.ilike.%${search}%`);
 
   const { data: messages, count, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
@@ -304,4 +320,165 @@ async function handleMessageRead(req, res, sb) {
   if (error) return res.status(500).json({ error: error.message });
 
   res.json({ success: true });
+}
+
+// ── Reply to message ────────────────────────────────────────────────────────
+async function handleMessageReply(req, res, sb, admin) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { message_id, reply_text, via } = req.body || {};
+  if (!message_id || !reply_text || !via) return res.status(400).json({ error: 'message_id, reply_text, and via required' });
+
+  const { data: msg } = await sb.from('messages').select('*').eq('id', message_id).single();
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+
+  const errors = [];
+
+  if ((via === 'email' || via === 'both') && msg.email) {
+    try {
+      await sendEmail({ to: msg.email, subject: 'Re: Your message', html: `<p>${reply_text.replace(/\n/g, '<br>')}</p>` });
+    } catch (e) { errors.push(`Email failed: ${e.message}`); }
+  }
+
+  if ((via === 'sms' || via === 'both') && msg.phone) {
+    try {
+      await sendSMS({ to: msg.phone, message: reply_text });
+    } catch (e) { errors.push(`SMS failed: ${e.message}`); }
+  }
+
+  // Store reply for audit
+  await sb.from('message_replies').insert({
+    message_id,
+    reply_text,
+    sent_via: via,
+    admin_id: admin.id,
+  });
+
+  // Mark as read
+  await sb.from('messages').update({ read: true }).eq('id', message_id);
+
+  res.json({ success: true, errors: errors.length > 0 ? errors : undefined });
+}
+
+// ── Get replies for a message ──────────────────────────────────────────────
+async function handleMessageReplies(req, res, sb) {
+  const { message_id } = req.query;
+  if (!message_id) return res.status(400).json({ error: 'message_id required' });
+
+  const { data: replies, error } = await sb
+    .from('message_replies')
+    .select('*')
+    .eq('message_id', message_id)
+    .order('created_at', { ascending: true });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ replies: replies || [] });
+}
+
+// ── Cancel job ──────────────────────────────────────────────────────────────
+async function handleJobCancel(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { job_id, reason } = req.body || {};
+  if (!job_id) return res.status(400).json({ error: 'job_id required' });
+
+  const { data: job } = await sb.from('jobs').select('status').eq('id', job_id).single();
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
+  const cancellable = ['pending_payment', 'pending_acceptance', 'accepted'];
+  if (!cancellable.includes(job.status))
+    return res.status(400).json({ error: `Cannot cancel job in ${job.status} status` });
+
+  const { error } = await sb.from('jobs').update({ status: 'cancelled' }).eq('id', job_id);
+  if (error) return res.status(500).json({ error: error.message });
+
+  await sb.from('job_events').insert({
+    job_id,
+    event_type: 'cancelled',
+    payload: { reason: reason || 'Admin cancelled', previous_status: job.status },
+    created_by: 'admin',
+  });
+
+  res.json({ success: true });
+}
+
+// ── Update job status (admin override) ──────────────────────────────────────
+async function handleJobStatusUpdate(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { job_id, status, reason } = req.body || {};
+  if (!job_id || !status) return res.status(400).json({ error: 'job_id and status required' });
+
+  const valid = ['pending_payment', 'pending_acceptance', 'accepted', 'in_progress', 'completed', 'cancelled', 'refunded'];
+  if (!valid.includes(status)) return res.status(400).json({ error: `Invalid status: ${status}` });
+
+  const { data: job } = await sb.from('jobs').select('status').eq('id', job_id).single();
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
+  const { error } = await sb.from('jobs').update({ status }).eq('id', job_id);
+  if (error) return res.status(500).json({ error: error.message });
+
+  await sb.from('job_events').insert({
+    job_id,
+    event_type: 'status_override',
+    payload: { from: job.status, to: status, reason: reason || 'Admin override' },
+    created_by: 'admin',
+  });
+
+  res.json({ success: true });
+}
+
+// ── Update payout status ────────────────────────────────────────────────────
+async function handlePayoutUpdate(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { payout_id, status } = req.body || {};
+  if (!payout_id || !status) return res.status(400).json({ error: 'payout_id and status required' });
+
+  const valid = ['pending', 'transferred', 'failed'];
+  if (!valid.includes(status)) return res.status(400).json({ error: `Invalid status: ${status}` });
+
+  const { error } = await sb.from('payouts').update({ status }).eq('id', payout_id);
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ success: true });
+}
+
+// ── CSV Export ──────────────────────────────────────────────────────────────
+async function handleExport(req, res, sb) {
+  const { type, status, from, to } = req.query;
+
+  if (type === 'jobs') {
+    let query = sb.from('jobs').select('id, customer_name, pickup_postcode, destination_postcode, move_date, customer_quote_gbp, deposit_gbp, balance_gbp, status, created_at, drivers(name)');
+    if (status && status !== 'all') query = query.eq('status', status);
+    if (from) query = query.gte('move_date', from);
+    if (to) query = query.lte('move_date', to);
+    const { data } = await query.order('created_at', { ascending: false });
+    const rows = (data || []).map(j => [j.id, j.customer_name, j.pickup_postcode, j.destination_postcode, j.move_date, j.customer_quote_gbp, j.deposit_gbp, j.balance_gbp, j.status, j.drivers?.name || '', j.created_at]);
+    return sendCSV(res, 'jobs', ['ID','Customer','Pickup','Destination','Date','Quote','Deposit','Balance','Status','Driver','Created'], rows);
+  }
+
+  if (type === 'payouts') {
+    let query = sb.from('payouts').select('id, gross_gbp, platform_fee_gbp, net_gbp, status, created_at, drivers(name), jobs(move_date, funnel_job_ref)');
+    if (status && status !== 'all') query = query.eq('status', status);
+    const { data } = await query.order('created_at', { ascending: false });
+    const rows = (data || []).map(p => [p.id, p.drivers?.name || '', p.jobs?.move_date || '', p.gross_gbp, p.platform_fee_gbp, p.net_gbp, p.status, p.created_at]);
+    return sendCSV(res, 'payouts', ['ID','Driver','Move Date','Gross','Fee','Net','Status','Created'], rows);
+  }
+
+  if (type === 'drivers') {
+    const { data } = await sb.from('drivers').select('id, name, phone, email, van_size, depot_postcode, approval_status, online, rating, rating_count, created_at').order('created_at', { ascending: false });
+    const rows = (data || []).map(d => [d.id, d.name, d.phone || '', d.email || '', d.van_size, d.depot_postcode, d.approval_status, d.online, d.rating || '', d.rating_count, d.created_at]);
+    return sendCSV(res, 'drivers', ['ID','Name','Phone','Email','Van','Depot','Approval','Online','Rating','Reviews','Created'], rows);
+  }
+
+  res.status(400).json({ error: 'type must be jobs, payouts, or drivers' });
+}
+
+function sendCSV(res, filename, headers, rows) {
+  const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [headers.join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename=${filename}-${new Date().toISOString().slice(0,10)}.csv`);
+  res.send(csv);
 }

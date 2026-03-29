@@ -15,6 +15,11 @@ export default function DriverDetail() {
   const [setupCode, setSetupCode]   = useState(null);
   const [generating, setGenerating] = useState(false);
 
+  // Driver info form state
+  const [info, setInfo] = useState({ name: '', phone: '', email: '', van_size: 'luton', depot_postcode: '' });
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [infoMsg, setInfoMsg] = useState('');
+
   // Onboarding form state
   const [onboarding, setOnboarding] = useState({
     approval_status: 'pending',
@@ -37,6 +42,13 @@ export default function DriverDetail() {
       .then(d => {
         setData(d);
         if (d?.driver) {
+          setInfo({
+            name: d.driver.name || '',
+            phone: d.driver.phone || '',
+            email: d.driver.email || '',
+            van_size: d.driver.van_size || 'luton',
+            depot_postcode: d.driver.depot_postcode || '',
+          });
           setOnboarding({
             approval_status: d.driver.approval_status || 'pending',
             insurance_verified: d.driver.insurance_verified || false,
@@ -135,6 +147,29 @@ export default function DriverDetail() {
     setTimeout(() => setInviteMsg(''), 3000);
   }
 
+  async function saveInfo() {
+    setSavingInfo(true);
+    setInfoMsg('');
+    try {
+      const res = await api('/api/admin?action=driver-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ driver_id: driverId, ...info }),
+      });
+      if (res.ok) {
+        setInfoMsg('Saved');
+        setTimeout(() => setInfoMsg(''), 2000);
+      } else {
+        const err = await res.json();
+        setInfoMsg(err.error || 'Error saving');
+      }
+    } catch {
+      setInfoMsg('Error saving');
+    } finally {
+      setSavingInfo(false);
+    }
+  }
+
   function setField(key, val) {
     setOnboarding(prev => ({ ...prev, [key]: val }));
   }
@@ -209,6 +244,72 @@ export default function DriverDetail() {
           </p>
         </div>
       )}
+
+      {/* Driver Info */}
+      <div style={s.card}>
+        <p style={s.sectionTitle}>Driver Info</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+          <div>
+            <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Name</label>
+            <input
+              value={info.name}
+              onChange={e => setInfo(p => ({ ...p, name: e.target.value }))}
+              style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+            />
+          </div>
+          <div>
+            <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Phone</label>
+            <input
+              type="tel"
+              value={info.phone}
+              onChange={e => setInfo(p => ({ ...p, phone: e.target.value }))}
+              style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+            />
+          </div>
+          <div>
+            <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Email</label>
+            <input
+              type="email"
+              value={info.email}
+              onChange={e => setInfo(p => ({ ...p, email: e.target.value }))}
+              style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+            />
+          </div>
+          <div>
+            <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Depot postcode</label>
+            <input
+              value={info.depot_postcode}
+              onChange={e => setInfo(p => ({ ...p, depot_postcode: e.target.value }))}
+              style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+            />
+          </div>
+          <div>
+            <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Van size</label>
+            <select
+              value={info.van_size}
+              onChange={e => setInfo(p => ({ ...p, van_size: e.target.value }))}
+              style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+            >
+              <option value="transit">Transit</option>
+              <option value="luton">Luton</option>
+              <option value="large_luton">Large Luton</option>
+              <option value="7.5t">7.5t</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button
+            style={{ ...s.btn, opacity: savingInfo ? 0.6 : 1 }}
+            onClick={saveInfo}
+            disabled={savingInfo}
+          >
+            {savingInfo ? 'Saving...' : 'Save info'}
+          </button>
+          {infoMsg && (
+            <span style={{ fontSize: '0.85rem', color: infoMsg === 'Saved' ? '#4ade80' : colors.error }}>{infoMsg}</span>
+          )}
+        </div>
+      </div>
 
       {/* Onboarding */}
       <div style={s.card}>
