@@ -86,3 +86,50 @@ export async function verifyDriver(req) {
   const claims = verifyDriverToken(token);
   return claims ? { id: claims.sub } : null;
 }
+
+// ── Admin auth ────────────────────────────────────────────────────────────────
+
+export function signAdminToken(adminId) {
+  const secret  = getSecret();
+  const header  = b64url(Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
+  const exp     = Math.floor(Date.now() / 1000) + 8 * 60 * 60; // 8-hour TTL
+  const payload = b64url(Buffer.from(JSON.stringify({ sub: adminId, role: 'admin', exp })));
+  const sig     = b64url(
+    crypto.createHmac('sha256', secret).update(`${header}.${payload}`).digest()
+  );
+  return `${header}.${payload}.${sig}`;
+}
+
+function verifyAdminToken(token) {
+  try {
+    const secret = getSecret();
+    const parts  = token.split('.');
+    if (parts.length !== 3) return null;
+    const [header, payload, sig] = parts;
+
+    const expected = crypto.createHmac('sha256', secret)
+      .update(`${header}.${payload}`).digest();
+    const actual   = Buffer.from(
+      sig.replace(/-/g, '+').replace(/_/g, '/'), 'base64'
+    );
+
+    if (actual.length !== expected.length) return null;
+    if (!crypto.timingSafeEqual(actual, expected)) return null;
+
+    const claims = JSON.parse(
+      Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()
+    );
+    if (!claims.sub || claims.role !== 'admin') return null;
+    if (claims.exp < Math.floor(Date.now() / 1000)) return null;
+
+    return claims;
+  } catch { return null; }
+}
+
+export async function verifyAdmin(req) {
+  const raw   = req.headers.authorization || req.headers.Authorization || '';
+  const token = raw.startsWith('Bearer ') ? raw.slice(7).trim() : null;
+  if (!token) return null;
+  const claims = verifyAdminToken(token);
+  return claims ? { id: claims.sub } : null;
+}

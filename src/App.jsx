@@ -4,6 +4,7 @@ import DriverLogin from './components/DriverLogin.jsx';
 import DriverDashboard from './components/DriverDashboard.jsx';
 import JobOffer from './components/JobOffer.jsx';
 import JobView from './components/JobView.jsx';
+import AdminShell from './components/admin/AdminShell.jsx';
 
 export default function App() {
   const [driver, setDriver]   = useState(null);
@@ -35,6 +36,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Admin dashboard — own auth, independent of driver state */}
+        <Route path="/admin/*" element={<AdminShell />} />
+
+        {/* Driver routes */}
         <Route path="/offer/:offerId" element={
           driver ? <JobOffer /> : <Navigate to="/login" replace />
         } />
