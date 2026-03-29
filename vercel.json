@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron-invoices",
+      "path": "/api/admin?action=cron-run",
       "schedule": "0 6 * * 1"
     }
   ],

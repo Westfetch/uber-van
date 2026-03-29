@@ -13,11 +13,23 @@ import { generateWeeklyInvoices } from './_lib/invoices.js';
 export default async function handler(req, res) {
   if (cors(req, res)) return;
 
+  const action = req.query.action;
+
+  // Cron endpoint — accepts CRON_SECRET instead of admin token
+  if (action === 'cron-run') {
+    const cronAuth = req.headers['authorization'] === `Bearer ${process.env.CRON_SECRET}`;
+    if (!cronAuth) {
+      const admin = await verifyAdmin(req);
+      if (!admin) return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const sb = getSupabaseAdmin();
+    return handleCronRun(req, res, sb);
+  }
+
   const admin = await verifyAdmin(req);
   if (!admin) return res.status(401).json({ error: 'Unauthorized' });
 
-  const sb     = getSupabaseAdmin();
-  const action = req.query.action;
+  const sb = getSupabaseAdmin();
 
   switch (action) {
     case 'jobs':    return handleJobs(req, res, sb);
@@ -680,6 +692,35 @@ async function handleInvoiceFail(req, res, sb) {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true });
+}
+
+// ── Cron: weekly invoice generation (called by Vercel Cron, auth via CRON_SECRET) ─
+async function handleCronRun(req, res, sb) {
+  const now   = new Date();
+  const day   = now.getUTCDay();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+  const thisMon = new Date(today);
+  thisMon.setUTCDate(today.getUTCDate() - ((day + 6) % 7));
+  const lastMon = new Date(thisMon);
+  lastMon.setUTCDate(thisMon.getUTCDate() - 7);
+  const lastSun = new Date(thisMon);
+  lastSun.setUTCDate(thisMon.getUTCDate() - 1);
+
+  const weekStart = lastMon.toISOString();
+  const weekEnd   = new Date(lastSun.getTime() + 86400000 - 1).toISOString();
+
+  try {
+    const result = await generateWeeklyInvoices(sb, { weekStart, weekEnd });
+    res.json({
+      ok: true,
+      week: `${lastMon.toISOString().slice(0, 10)} to ${lastSun.toISOString().slice(0, 10)}`,
+      ...result,
+    });
+  } catch (err) {
+    console.error('[cron-run] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
 }
 
 // ── Manual invoice generation trigger ────────────────────────────────────────
