@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../lib/api.js';
 
 export default function SignOff({ job, onComplete }) {
@@ -13,10 +13,45 @@ export default function SignOff({ job, onComplete }) {
   const balance       = Number(job?.balance_gbp || 0);
   const adjustments   = finalTotal - originalQuote;
 
+  // Poll for customer sign-off event every 10s after link is sent
+  const pollRef = useRef(null);
+  useEffect(() => {
+    if (!signLinkSent || customerSigned) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const token = localStorage.getItem('driver_token');
+        const res = await api(`/api/admin?action=job&id=${job.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const events = data.job?.events || data.events || [];
+        if (events.some(e => e.event_type === 'customer_signed_off')) {
+          setCustomerSigned(true);
+          clearInterval(pollRef.current);
+        }
+      } catch {}
+    }, 10_000);
+    return () => clearInterval(pollRef.current);
+  }, [signLinkSent, customerSigned, job?.id]);
+
   async function sendSignLink() {
-    // In production: POST /api/send-sign-link { job_id }
-    // For MVP: just mark as sent and show a confirmation
-    setSignLinkSent(true);
+    try {
+      const token = localStorage.getItem('driver_token');
+      const res = await api('/api/customer-signoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ job_id: job.id, action: 'request' }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Failed to send sign-off link');
+        return;
+      }
+      setSignLinkSent(true);
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function confirmComplete() {

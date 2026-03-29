@@ -8,6 +8,7 @@
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
 import { sendSMS } from './_lib/sms.js';
 import { signBookingLink } from './_lib/email.js';
+import cors from './_lib/cors.js';
 
 function isMoveDay(moveDate) {
   if (!moveDate) return false;
@@ -16,6 +17,7 @@ function isMoveDay(moveDate) {
 }
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const caller = await verifyDriver(req);

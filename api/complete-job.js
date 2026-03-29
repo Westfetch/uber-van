@@ -5,8 +5,10 @@
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
 import { sendEmail, signBookingLink } from './_lib/email.js';
 import { sendSMS } from './_lib/sms.js';
+import cors from './_lib/cors.js';
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).end();
 
   const caller = await verifyDriver(req);
@@ -68,6 +70,15 @@ export default async function handler(req, res) {
     gross_gbp: gross, platform_fee_gbp: fee, net_gbp: net,
     status: 'pending',
   });
+
+  // SMS: receipt
+  if (job.customer_phone) {
+    const smsBookingUrl = signBookingLink(job_id);
+    sendSMS({
+      to: job.customer_phone,
+      body: `Move complete! Total: £${finalTotal.toFixed(2)}. View your receipt: ${smsBookingUrl}`,
+    }).catch(err => console.error('[complete-job] Receipt SMS failed:', err));
+  }
 
   // Send receipt email to customer
   if (job.customer_email) {

@@ -7,6 +7,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from './_lib/auth.js';
 import { verifyBookingSig } from './_lib/email.js';
+import cors from './_lib/cors.js';
 
 // Event types the customer should see
 const CUSTOMER_EVENTS = [
@@ -23,6 +24,7 @@ const CUSTOMER_EVENTS = [
 const DRIVER_VISIBLE_STATUSES = ['accepted', 'in_progress', 'completed'];
 
 export default async function handler(req, res) {
+  if (cors(req, res)) return;
   if (req.method !== 'GET') return res.status(405).end();
 
   const { id, token, sig, exp } = req.query || {};

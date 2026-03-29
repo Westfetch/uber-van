@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import api from '../../lib/api.js';
 import BookingHeader from './BookingHeader.jsx';
 import StatusPending from './StatusPending.jsx';
 import StatusAccepted from './StatusAccepted.jsx';
@@ -39,7 +40,7 @@ export default function BookingPortal() {
     if (!token) { setError('No booking token'); setLoading(false); return; }
 
     try {
-      const res = await fetch(`/api/booking?id=${id}&token=${token}`);
+      const res = await api(`/api/booking?id=${id}&token=${token}`);
       if (!res.ok) {
         setError(res.status === 401 ? 'Invalid booking link' : 'Booking not found');
         setLoading(false);

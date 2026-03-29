@@ -1,4 +1,5 @@
 // StatusInProgress — move day, live inventory, price adjustments, sign-off
+import api from '../../lib/api.js';
 
 export default function StatusInProgress({ booking }) {
   const formatDate = d => new Date(d).toLocaleDateString('en-GB', {
@@ -135,7 +136,7 @@ export default function StatusInProgress({ booking }) {
             onClick={() => {
               // Will be wired in Phase 5
               const token = sessionStorage.getItem(`booking_token_${booking.id}`);
-              fetch('/api/customer-signoff', {
+              api('/api/customer-signoff', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: booking.id, token, action: 'confirm' }),
