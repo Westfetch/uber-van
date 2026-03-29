@@ -293,8 +293,8 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
             </div>
           )}
 
-          {/* Online toggle — shown when no active jobs */}
-          {activeJobs.length === 0 && (
+          {/* Online toggle — prominent when offline to nudge them online */}
+          {!online && (
             <div style={{ padding: '0 20px 12px' }}>
               <OnlineToggle online={online} onToggle={handleToggle} toggling={toggling} />
             </div>
@@ -311,7 +311,7 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
                 <div style={{ color: '#888', fontSize: '0.85rem', lineHeight: 1.5 }}>
                   {online
                     ? "You're online and ready. Job offers will land here and in your email as soon as one comes in."
-                    : 'Flip the toggle above to go online. Once you do, job offers will appear here.'}
+                    : 'Go online above to start receiving job offers.'}
                 </div>
               </div>
             </div>
@@ -344,6 +344,14 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
               {pastJobs.slice(0, 3).map(job => (
                 <JobCard key={job.id} job={job} onClick={() => navigate(`/job/${job.id}`)} />
               ))}
+            </section>
+          )}
+
+          {/* Settings — toggle buried here once online */}
+          {online && (
+            <section style={{ padding: '0 20px 32px' }}>
+              <div style={s.sectionTitle}>SETTINGS</div>
+              <OnlineToggle online={online} onToggle={handleToggle} toggling={toggling} />
             </section>
           )}
         </>
