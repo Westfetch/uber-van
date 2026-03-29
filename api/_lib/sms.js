@@ -1,43 +1,37 @@
 // api/_lib/sms.js
-// Twilio SMS utility — raw fetch, no SDK dependency.
-// Env vars: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
-
-const ACCOUNT_SID  = () => process.env.TWILIO_ACCOUNT_SID;
-const AUTH_TOKEN   = () => process.env.TWILIO_AUTH_TOKEN;
-const FROM_NUMBER  = () => process.env.TWILIO_PHONE_NUMBER;
+// SMS via textbee.dev — uses your Android phone as an SMS gateway.
+// Free, uses your unlimited texts plan. Phone must be on and connected.
+// Env vars: TEXTBEE_API_KEY, TEXTBEE_DEVICE_ID
 
 export async function sendSMS({ to, body }) {
-  const sid   = ACCOUNT_SID();
-  const token = AUTH_TOKEN();
-  const from  = FROM_NUMBER();
+  const apiKey   = process.env.TEXTBEE_API_KEY;
+  const deviceId = process.env.TEXTBEE_DEVICE_ID;
 
-  if (!sid || !token || !from) {
-    console.log(`[sms] No Twilio credentials: to=${to} body=${body.slice(0, 50)}...`);
+  if (!apiKey || !deviceId) {
+    console.log(`[sms] No textbee credentials: to=${to} body=${body.slice(0, 50)}...`);
     return;
   }
 
-  // Twilio expects E.164 format — ensure UK numbers have +44
   const formatted = formatUKPhone(to);
   if (!formatted) {
     console.error(`[sms] Invalid phone number: ${to}`);
     return;
   }
 
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
-  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const url = `https://api.textbee.dev/api/v1/gateway/devices/${deviceId}/send-sms`;
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'x-api-key': apiKey,
+      'Content-Type': 'application/json',
     },
-    body: new URLSearchParams({ To: formatted, From: from, Body: body }).toString(),
+    body: JSON.stringify({ recipients: [formatted], message: body }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    console.error('[sms] Twilio error:', err);
+    console.error('[sms] textbee error:', err);
   }
 }
 
