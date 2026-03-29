@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
+import OnlineToggle from './OnlineToggle.jsx';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -105,35 +106,6 @@ function NextJobHero({ job, onClick }) {
         </span>
       </div>
     </button>
-  );
-}
-
-function OnlineToggle({ online, onToggle, toggling }) {
-  return (
-    <div style={s.toggleCard}>
-      <div style={{ flex: 1 }}>
-        <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 600 }}>
-          {online ? "You're online" : "You're offline"}
-        </div>
-        <div style={{ color: '#888', fontSize: '0.8rem', marginTop: '2px' }}>
-          {online ? 'Job offers will be sent to you' : 'Go online to receive job offers'}
-        </div>
-      </div>
-      <button
-        style={{
-          ...s.toggle,
-          background: online ? '#4ade80' : '#333',
-          opacity: toggling ? 0.6 : 1,
-        }}
-        onClick={onToggle}
-        disabled={toggling}
-      >
-        <div style={{
-          ...s.toggleKnob,
-          transform: online ? 'translateX(24px)' : 'translateX(0)',
-        }} />
-      </button>
-    </div>
   );
 }
 
@@ -274,9 +246,7 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
             {online ? 'Online' : 'Offline'}
           </div>
         </div>
-        <button style={s.logoutBtn} onClick={() => { localStorage.removeItem('driver_token'); onLogout(); }}>
-          Sign out
-        </button>
+        <span style={{ ...s.onlineDot, background: online ? '#4ade80' : '#666', width: '10px', height: '10px', marginTop: '10px' }} />
       </div>
 
       {loading ? (
@@ -347,10 +317,9 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
             </section>
           )}
 
-          {/* Settings — toggle buried here once online */}
+          {/* Online toggle — compact when already online */}
           {online && (
             <section style={{ padding: '0 20px 32px' }}>
-              <div style={s.sectionTitle}>SETTINGS</div>
               <OnlineToggle online={online} onToggle={handleToggle} toggling={toggling} />
             </section>
           )}
@@ -363,7 +332,7 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 const s = {
-  page: { background: '#0a0a0a', minHeight: '100dvh', color: '#fff', fontFamily: 'system-ui, sans-serif' },
+  page: { background: '#0a0a0a', minHeight: '100dvh', color: '#fff', fontFamily: 'system-ui, sans-serif', paddingBottom: '80px' },
 
   // Header
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '24px 20px 16px', borderBottom: '1px solid #1e1e1e' },

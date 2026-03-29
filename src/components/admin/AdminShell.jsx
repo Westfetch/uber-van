@@ -10,6 +10,7 @@ import DriverList from './DriverList.jsx';
 import DriverForm from './DriverForm.jsx';
 import DriverDetail from './DriverDetail.jsx';
 import PayoutList from './PayoutList.jsx';
+import InvoiceList from './InvoiceList.jsx';
 import MessageList from './MessageList.jsx';
 import ConfigPage from './ConfigPage.jsx';
 import { s, colors } from './styles.js';
@@ -17,8 +18,9 @@ import { s, colors } from './styles.js';
 const NAV = [
   { path: '/admin/jobs',    label: 'Jobs' },
   { path: '/admin/drivers', label: 'Drivers' },
-  { path: '/admin/payouts',  label: 'Payouts' },
-  { path: '/admin/messages', label: 'Messages' },
+  { path: '/admin/payouts',   label: 'Payouts' },
+  { path: '/admin/invoices',  label: 'Invoices' },
+  { path: '/admin/messages',  label: 'Messages' },
   { path: '/admin/config',   label: 'Config' },
 ];
 
@@ -168,6 +170,7 @@ export default function AdminShell() {
             <Route path="drivers/new" element={<DriverForm />} />
             <Route path="drivers/:driverId" element={<DriverDetail />} />
             <Route path="payouts" element={<PayoutList />} />
+            <Route path="invoices" element={<InvoiceList />} />
             <Route path="messages" element={<MessageList />} />
             <Route path="config" element={<ConfigPage />} />
             <Route path="*" element={<Navigate to="/admin/jobs" replace />} />

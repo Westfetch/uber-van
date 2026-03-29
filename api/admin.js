@@ -8,6 +8,7 @@ import cors from './_lib/cors.js';
 import { sendEmail } from './_lib/email.js';
 import { sendSMS } from './_lib/sms.js';
 import { VAN_DB_VALUES } from './_lib/vanConfig.js';
+import { generateWeeklyInvoices } from './_lib/invoices.js';
 
 export default async function handler(req, res) {
   if (cors(req, res)) return;
@@ -38,7 +39,12 @@ export default async function handler(req, res) {
     case 'config':         return handleConfig(req, res, sb);
     case 'config-update':  return handleConfigUpdate(req, res, sb);
     case 'funnel-update':  return handleFunnelUpdate(req, res, sb);
-    case 'export':         return handleExport(req, res, sb);
+    case 'export':             return handleExport(req, res, sb);
+    case 'invoices':           return handleInvoices(req, res, sb);
+    case 'invoice-detail':     return handleInvoiceDetail(req, res, sb);
+    case 'invoice-pay':        return handleInvoicePay(req, res, sb, admin);
+    case 'invoice-fail':       return handleInvoiceFail(req, res, sb);
+    case 'generate-invoices':  return handleGenerateInvoices(req, res, sb);
     default:               return res.status(400).json({ error: `Unknown action: ${action}` });
   }
 }
@@ -443,7 +449,7 @@ async function handlePayoutUpdate(req, res, sb) {
   const { payout_id, status } = req.body || {};
   if (!payout_id || !status) return res.status(400).json({ error: 'payout_id and status required' });
 
-  const valid = ['pending', 'transferred', 'failed'];
+  const valid = ['pending', 'invoiced', 'transferred', 'failed'];
   if (!valid.includes(status)) return res.status(400).json({ error: `Invalid status: ${status}` });
 
   const { error } = await sb.from('payouts').update({ status }).eq('id', payout_id);
@@ -480,7 +486,17 @@ async function handleExport(req, res, sb) {
     return sendCSV(res, 'drivers', ['ID','Name','Phone','Email','Van','Depot','Approval','Online','Rating','Reviews','Created'], rows);
   }
 
-  res.status(400).json({ error: 'type must be jobs, payouts, or drivers' });
+  if (type === 'invoices') {
+    let query = sb.from('invoices').select('id, invoice_number, week_start, week_end, job_count, gross_gbp, platform_fee_gbp, net_gbp, status, paid_at, payment_ref, drivers(name)');
+    if (status && status !== 'all') query = query.eq('status', status);
+    if (from) query = query.gte('week_start', from);
+    if (to) query = query.lte('week_end', to);
+    const { data } = await query.order('week_start', { ascending: false });
+    const rows = (data || []).map(i => [i.invoice_number, i.drivers?.name || '', i.week_start, i.week_end, i.job_count, i.gross_gbp, i.platform_fee_gbp, i.net_gbp, i.status, i.paid_at || '', i.payment_ref || '']);
+    return sendCSV(res, 'invoices', ['Invoice','Driver','Week Start','Week End','Jobs','Gross','Fee','Net','Status','Paid At','Payment Ref'], rows);
+  }
+
+  res.status(400).json({ error: 'type must be jobs, payouts, drivers, or invoices' });
 }
 
 // ── Platform config ────────────────────────────────────────────────────────
@@ -536,6 +552,165 @@ async function handleFunnelUpdate(req, res, sb) {
   const { error } = await sb.from('funnels').update(updates).eq('id', funnel_id);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ success: true });
+}
+
+// ── Invoices list ─────────────────────────────────────────────────────────────
+async function handleInvoices(req, res, sb) {
+  const { status, from, to, page = '1', limit = '20' } = req.query;
+  const pg     = Math.max(1, parseInt(page));
+  const lim    = Math.min(100, Math.max(1, parseInt(limit)));
+  const offset = (pg - 1) * lim;
+
+  let query = sb
+    .from('invoices')
+    .select(`
+      id, invoice_number, driver_id, week_start, week_end,
+      job_count, gross_gbp, platform_fee_gbp, net_gbp,
+      status, issued_at, paid_at, payment_ref,
+      drivers(name)
+    `, { count: 'exact' })
+    .order('week_start', { ascending: false })
+    .range(offset, offset + lim - 1);
+
+  if (status && status !== 'all') query = query.eq('status', status);
+  if (from) query = query.gte('week_start', from);
+  if (to)   query = query.lte('week_end', to);
+
+  const { data: invoices, count, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Summary across all invoices (filtered)
+  let summaryQuery = sb.from('invoices').select('gross_gbp, platform_fee_gbp, net_gbp, status');
+  if (from) summaryQuery = summaryQuery.gte('week_start', from);
+  if (to)   summaryQuery = summaryQuery.lte('week_end', to);
+  const { data: all } = await summaryQuery;
+  const filtered = all || [];
+
+  const summary = {
+    total_invoiced: filtered.reduce((s, i) => s + Number(i.net_gbp), 0),
+    total_paid:     filtered.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.net_gbp), 0),
+    total_outstanding: filtered.filter(i => i.status === 'issued').reduce((s, i) => s + Number(i.net_gbp), 0),
+    count:          filtered.length,
+  };
+
+  const mapped = (invoices || []).map(i => ({
+    ...i, driver_name: i.drivers?.name || null, drivers: undefined,
+  }));
+
+  res.json({ invoices: mapped, summary, total: count || 0, page: pg, pages: Math.ceil((count || 0) / lim) });
+}
+
+// ── Single invoice detail with lines + driver bank info ──────────────────────
+async function handleInvoiceDetail(req, res, sb) {
+  const id = req.query.id;
+  if (!id) return res.status(400).json({ error: 'Invoice ID required' });
+
+  const [invRes, linesRes] = await Promise.all([
+    sb.from('invoices')
+      .select('*, drivers(name, email, phone, bank_sort_code, bank_account_no, bank_account_name)')
+      .eq('id', id)
+      .single(),
+    sb.from('invoice_lines')
+      .select('id, description, move_date, gross_gbp, fee_gbp, net_gbp')
+      .eq('invoice_id', id)
+      .order('move_date', { ascending: true }),
+  ]);
+
+  if (invRes.error || !invRes.data) return res.status(404).json({ error: 'Invoice not found' });
+
+  res.json({ invoice: invRes.data, lines: linesRes.data || [] });
+}
+
+// ── Mark invoice as paid ─────────────────────────────────────────────────────
+async function handleInvoicePay(req, res, sb, admin) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { invoice_id, payment_ref } = req.body || {};
+  if (!invoice_id) return res.status(400).json({ error: 'invoice_id required' });
+
+  const { data: invoice } = await sb.from('invoices').select('id, status').eq('id', invoice_id).single();
+  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+  if (invoice.status === 'paid') return res.status(409).json({ error: 'Invoice already paid' });
+
+  // Update invoice
+  const { error: invErr } = await sb
+    .from('invoices')
+    .update({
+      status:      'paid',
+      paid_at:     new Date().toISOString(),
+      paid_by:     admin.name || 'admin',
+      payment_ref: payment_ref || null,
+    })
+    .eq('id', invoice_id);
+
+  if (invErr) return res.status(500).json({ error: invErr.message });
+
+  // Update all associated payouts to transferred
+  await sb
+    .from('payouts')
+    .update({ status: 'transferred' })
+    .eq('invoice_id', invoice_id);
+
+  // Log events for each job on this invoice
+  const { data: lines } = await sb.from('invoice_lines').select('job_id').eq('invoice_id', invoice_id);
+  if (lines?.length) {
+    const events = lines.map(l => ({
+      job_id:     l.job_id,
+      event_type: 'driver_paid_out',
+      payload:    { invoice_id, payment_ref: payment_ref || null },
+      created_by: 'admin',
+    }));
+    await sb.from('job_events').insert(events);
+  }
+
+  res.json({ success: true });
+}
+
+// ── Mark invoice as failed ───────────────────────────────────────────────────
+async function handleInvoiceFail(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { invoice_id } = req.body || {};
+  if (!invoice_id) return res.status(400).json({ error: 'invoice_id required' });
+
+  const { error } = await sb
+    .from('invoices')
+    .update({ status: 'failed' })
+    .eq('id', invoice_id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+}
+
+// ── Manual invoice generation trigger ────────────────────────────────────────
+async function handleGenerateInvoices(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Default to previous week, but allow custom range
+  const now   = new Date();
+  const day   = now.getUTCDay();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+  const thisMon = new Date(today);
+  thisMon.setUTCDate(today.getUTCDate() - ((day + 6) % 7));
+  const lastMon = new Date(thisMon);
+  lastMon.setUTCDate(thisMon.getUTCDate() - 7);
+  const lastSun = new Date(thisMon);
+  lastSun.setUTCDate(thisMon.getUTCDate() - 1);
+
+  const weekStart = req.body?.week_start || lastMon.toISOString();
+  const weekEnd   = req.body?.week_end   || new Date(lastSun.getTime() + 86400000 - 1).toISOString();
+
+  try {
+    const result = await generateWeeklyInvoices(sb, { weekStart, weekEnd });
+    res.json({
+      ok: true,
+      week: `${weekStart.slice(0, 10)} to ${weekEnd.slice(0, 10)}`,
+      ...result,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 function sendCSV(res, filename, headers, rows) {

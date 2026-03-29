@@ -13,6 +13,7 @@
 
 import crypto from 'crypto';
 import { getSupabaseAdmin } from './_lib/auth.js';
+import { sendPush } from './_lib/push.js';
 
 // Joe's driver ID — first dibs on all VDM jobs.
 // Set via env var so this doesn't need a code deploy when Joe's ID changes.
@@ -123,6 +124,17 @@ export default async function handler(req, res) {
       payload:    { driver_id: JOE_DRIVER_ID, payout_gbp: driverPayout, expires_at: expiresAt },
       created_by: 'system',
     });
+
+    // Push notification to driver's device (fire and forget)
+    const { data: driverRow } = await admin
+      .from('drivers').select('fcm_token').eq('id', JOE_DRIVER_ID).maybeSingle();
+    if (driverRow?.fcm_token) {
+      sendPush(driverRow.fcm_token, {
+        title: 'New job offer',
+        body: `${body.pickup_postcode} → ${body.destination_postcode} — ${body.move_date}`,
+        data: { offer_id: job.id },
+      }).catch(err => console.error('Push send failed:', err));
+    }
   }
 
   // Notify Joe via email (fire and forget)

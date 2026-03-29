@@ -1,6 +1,6 @@
 // api/complete-job.js → POST /api/complete-job
 // Driver confirms job complete after customer sign-off.
-// Triggers Stripe balance charge + payout (stubs for now — Stripe Connect setup required).
+// Creates payout record (pending). Payouts are settled via weekly invoices + BACS.
 
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
 import { sendEmail, signBookingLink } from './_lib/email.js';
@@ -29,9 +29,6 @@ export default async function handler(req, res) {
   if (!job) return res.status(404).json({ error: 'Job not found' });
   if (!['accepted', 'in_progress'].includes(job.status))
     return res.status(409).json({ error: 'Job is not in a completable state' });
-
-  // TODO: Charge Stripe balance (stripe.paymentIntents.capture or new charge for balance)
-  // TODO: Stripe Connect transfer to driver.stripe_account_id
 
   const finalTotal = job.final_total_gbp || job.customer_quote_gbp;
 
