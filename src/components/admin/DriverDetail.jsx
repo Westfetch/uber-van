@@ -137,14 +137,11 @@ export default function DriverDetail() {
     if (!code) { setInviteMsg('Failed to generate code'); return; }
 
     const landingUrl = `${APP_ORIGIN}/driver/get-started`;
-    const message = `You've been invited to drive with us! Get the app: ${landingUrl}\n\nYour name: ${data.driver.name}\nYour login code: ${code}\n(Code expires in 48h, one-time use)`;
-
-    try {
-      await navigator.clipboard.writeText(message);
-      setInviteMsg('Invite copied to clipboard!');
-    } catch {
-      setInviteMsg('Could not copy — share manually');
-    }
+    const message = `You've been invited to drive with us!\n\nDownload the app: ${landingUrl}\n\nYour login code: ${code}\n(Expires in 48h, one-time use)`;
+    const phone = data.driver.phone || '';
+    const smsUrl = `sms:${phone}?body=${encodeURIComponent(message)}`;
+    window.open(smsUrl, '_self');
+    setInviteMsg('Opening messages...');
     setTimeout(() => setInviteMsg(''), 3000);
   }
 
