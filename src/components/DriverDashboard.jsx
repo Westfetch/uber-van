@@ -174,7 +174,7 @@ function ActivityFeed({ activity }) {
 }
 
 function WelcomeBanner({ driver }) {
-  const approved = driver?.approval_status === 'approved';
+  const approved = !driver?.approval_status || driver?.approval_status === 'approved';
   return (
     <div style={s.welcomeCard}>
       <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>👋</div>
