@@ -10,6 +10,8 @@ import DriverLanding from './components/DriverLanding.jsx';
 import api from './lib/api.js';
 import { setupPush } from './lib/push.js';
 
+const IS_ADMIN_APP = import.meta.env.VITE_APP_MODE === 'admin';
+
 export default function App() {
   const [driver, setDriver]   = useState(null);
   const [checking, setChecking] = useState(true);
@@ -60,11 +62,13 @@ export default function App() {
           driver ? <Navigate to="/" replace /> : <DriverLogin onLogin={d => { setDriver(d); setupPush(); }} />
         } />
         <Route path="/" element={
-          driver
-            ? <DriverShell driver={driver} onLogout={() => setDriver(null)} onDriverUpdate={u => setDriver(d => ({ ...d, ...u }))} />
-            : <Navigate to="/login" replace />
+          IS_ADMIN_APP
+            ? <Navigate to="/admin" replace />
+            : driver
+              ? <DriverShell driver={driver} onLogout={() => setDriver(null)} onDriverUpdate={u => setDriver(d => ({ ...d, ...u }))} />
+              : <Navigate to="/login" replace />
         } />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to={IS_ADMIN_APP ? "/admin" : "/"} replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VanHQ Admin</string>
+    <string name="title_activity_main">VanHQ Admin</string>
+    <string name="package_name">app.ubervan.admin</string>
+    <string name="custom_url_scheme">app.ubervan.admin</string>
+</resources>

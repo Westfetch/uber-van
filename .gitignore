@@ -28,3 +28,4 @@ dist-ssr
 
 # Firebase — contains sensitive project config
 android/app/google-services.json
+android-admin/app/google-services.json
