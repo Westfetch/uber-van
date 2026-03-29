@@ -19,6 +19,8 @@ export default async function handler(req, res) {
     case 'driver':  return handleDriver(req, res, sb);
     case 'driver-create':     return handleDriverCreate(req, res, sb);
     case 'driver-setup-code': return handleDriverSetupCode(req, res, sb);
+    case 'driver-update':     return handleDriverUpdate(req, res, sb);
+    case 'driver-reset':      return handleDriverReset(req, res, sb);
     case 'payouts':      return handlePayouts(req, res, sb);
     case 'messages':     return handleMessages(req, res, sb);
     case 'message-read': return handleMessageRead(req, res, sb);
@@ -86,7 +88,7 @@ async function handleJob(req, res, sb) {
 async function handleDrivers(req, res, sb) {
   const { data: drivers, error } = await sb
     .from('drivers')
-    .select('id, name, phone, email, van_size, depot_postcode, online, created_at')
+    .select('id, name, phone, email, van_size, depot_postcode, online, approval_status, rating, rating_count, created_at')
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
@@ -174,6 +176,50 @@ async function handleDriverSetupCode(req, res, sb) {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ code });
+}
+
+// ── Update driver onboarding fields ──────────────────────────────────────────
+async function handleDriverUpdate(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { driver_id, approval_status, insurance_verified, insurance_expiry, license_verified, dbs_verified, notes } = req.body || {};
+  if (!driver_id) return res.status(400).json({ error: 'driver_id required' });
+
+  const updates = {};
+  if (approval_status !== undefined)   updates.approval_status = approval_status;
+  if (insurance_verified !== undefined) updates.insurance_verified = insurance_verified;
+  if (insurance_expiry !== undefined)   updates.insurance_expiry = insurance_expiry || null;
+  if (license_verified !== undefined)   updates.license_verified = license_verified;
+  if (dbs_verified !== undefined)       updates.dbs_verified = dbs_verified;
+  if (notes !== undefined)              updates.notes = notes || null;
+
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+  const { data: driver, error } = await sb
+    .from('drivers')
+    .update(updates)
+    .eq('id', driver_id)
+    .select('*')
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ driver });
+}
+
+// ── Reset driver account ─────────────────────────────────────────────────────
+async function handleDriverReset(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { driver_id } = req.body || {};
+  if (!driver_id) return res.status(400).json({ error: 'driver_id required' });
+
+  const { error } = await sb
+    .from('drivers')
+    .update({ setup_code_hash: null, setup_code_expires_at: null, online: false })
+    .eq('id', driver_id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
 }
 
 // ── Payouts list ───────────────────────────────────────────────────────────────

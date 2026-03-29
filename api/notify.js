@@ -6,30 +6,12 @@
 // Header: x-internal (internal secret, not driver token)
 
 import { getSupabaseAdmin } from './_lib/auth.js';
-
-const RESEND_API_KEY  = process.env.RESEND_API_KEY;
-const FROM_EMAIL      = process.env.NOTIFY_FROM_EMAIL || 'jobs@uber-van.co.uk';
-const BASE_URL        = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : 'http://localhost:5174';
+import { sendEmail, BASE_URL } from './_lib/email.js';
 
 function verifyInternal(req) {
   const secret = process.env.INTERNAL_SECRET;
   if (!secret) return false;
   return req.headers['x-internal'] === secret;
-}
-
-async function sendEmail({ to, subject, html }) {
-  if (!RESEND_API_KEY) {
-    console.log(`[notify] Email (no RESEND_API_KEY): to=${to} subject=${subject}`);
-    return;
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method:  'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-  });
-  if (!res.ok) console.error('[notify] Resend error:', await res.text());
 }
 
 export default async function handler(req, res) {

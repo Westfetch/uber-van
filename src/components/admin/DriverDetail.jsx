@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
+import api from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
-import { s, colors } from './styles.js';
+import { s, colors, statusColors } from './styles.js';
 
 export default function DriverDetail() {
   const { driverId } = useParams();
@@ -14,12 +15,38 @@ export default function DriverDetail() {
   const [setupCode, setSetupCode]   = useState(null);
   const [generating, setGenerating] = useState(false);
 
+  // Onboarding form state
+  const [onboarding, setOnboarding] = useState({
+    approval_status: 'pending',
+    insurance_verified: false,
+    insurance_expiry: '',
+    license_verified: false,
+    dbs_verified: false,
+    notes: '',
+  });
+  const [saving, setSaving]       = useState(false);
+  const [saveMsg, setSaveMsg]     = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [inviteMsg, setInviteMsg] = useState('');
+
   useEffect(() => {
-    fetch(`/api/admin?action=driver&id=${driverId}`, {
+    api(`/api/admin?action=driver&id=${driverId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)
-      .then(d => setData(d))
+      .then(d => {
+        setData(d);
+        if (d?.driver) {
+          setOnboarding({
+            approval_status: d.driver.approval_status || 'pending',
+            insurance_verified: d.driver.insurance_verified || false,
+            insurance_expiry: d.driver.insurance_expiry || '',
+            license_verified: d.driver.license_verified || false,
+            dbs_verified: d.driver.dbs_verified || false,
+            notes: d.driver.notes || '',
+          });
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [driverId, token]);
@@ -27,7 +54,7 @@ export default function DriverDetail() {
   async function generateCode() {
     setGenerating(true);
     try {
-      const res = await fetch('/api/admin?action=driver-setup-code', {
+      const res = await api('/api/admin?action=driver-setup-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ driver_id: driverId }),
@@ -39,10 +66,84 @@ export default function DriverDetail() {
     }
   }
 
+  async function saveOnboarding() {
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      const res = await api('/api/admin?action=driver-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ driver_id: driverId, ...onboarding }),
+      });
+      if (res.ok) {
+        setSaveMsg('Saved');
+        setTimeout(() => setSaveMsg(''), 2000);
+      } else {
+        const err = await res.json();
+        setSaveMsg(err.error || 'Error saving');
+      }
+    } catch {
+      setSaveMsg('Error saving');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetAccount() {
+    if (!confirm('Reset this driver\'s account? This will clear their setup code and set them offline. You can then generate a new setup code.')) return;
+    setResetting(true);
+    try {
+      await api('/api/admin?action=driver-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ driver_id: driverId }),
+      });
+      setSetupCode(null);
+    } catch {} finally {
+      setResetting(false);
+    }
+  }
+
+  async function sendInvite() {
+    setInviteMsg('');
+    let code = setupCode;
+    if (!code) {
+      setGenerating(true);
+      try {
+        const res = await api('/api/admin?action=driver-setup-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ driver_id: driverId }),
+        });
+        const d = await res.json();
+        if (res.ok) { code = d.code; setSetupCode(d.code); }
+      } catch {} finally {
+        setGenerating(false);
+      }
+    }
+    if (!code) { setInviteMsg('Failed to generate code'); return; }
+
+    const landingUrl = `${window.location.origin}/driver/get-started`;
+    const message = `You've been invited to drive with us! Get the app: ${landingUrl}\n\nYour name: ${data.driver.name}\nYour login code: ${code}\n(Code expires in 48h, one-time use)`;
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setInviteMsg('Invite copied to clipboard!');
+    } catch {
+      setInviteMsg('Could not copy — share manually');
+    }
+    setTimeout(() => setInviteMsg(''), 3000);
+  }
+
+  function setField(key, val) {
+    setOnboarding(prev => ({ ...prev, [key]: val }));
+  }
+
   if (loading) return <p style={{ color: colors.muted, padding: '40px', textAlign: 'center' }}>Loading...</p>;
   if (!data) return <p style={{ color: colors.error, padding: '40px', textAlign: 'center' }}>Driver not found</p>;
 
   const d = data.driver;
+  const approvalColor = statusColors[onboarding.approval_status] || '#555';
 
   return (
     <div>
@@ -66,14 +167,28 @@ export default function DriverDetail() {
             {d.van_size} &middot; {d.depot_postcode} &middot; {d.phone || 'No phone'} &middot; {d.email || 'No email'}
           </p>
         </div>
-        <button
-          style={{ ...s.btn, opacity: generating ? 0.6 : 1 }}
-          onClick={generateCode}
-          disabled={generating}
-        >
-          {generating ? 'Generating...' : 'Generate setup code'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            style={{ ...s.btnOutline, opacity: generating ? 0.6 : 1 }}
+            onClick={sendInvite}
+            disabled={generating}
+          >
+            Send invite
+          </button>
+          <button
+            style={{ ...s.btn, opacity: generating ? 0.6 : 1 }}
+            onClick={generateCode}
+            disabled={generating}
+          >
+            {generating ? 'Generating...' : 'Generate setup code'}
+          </button>
+        </div>
       </div>
+
+      {/* Invite feedback */}
+      {inviteMsg && (
+        <p style={{ color: colors.accent, fontSize: '0.85rem', margin: '0 0 8px', textAlign: 'center' }}>{inviteMsg}</p>
+      )}
 
       {/* Setup code display */}
       {setupCode && (
@@ -95,6 +210,108 @@ export default function DriverDetail() {
         </div>
       )}
 
+      {/* Onboarding */}
+      <div style={s.card}>
+        <p style={s.sectionTitle}>Onboarding</p>
+
+        {/* Approval status */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={s.label}>Approval status</label>
+          <div style={{ marginTop: '6px', display: 'flex', gap: '8px' }}>
+            {['pending', 'approved', 'suspended'].map(status => (
+              <button
+                key={status}
+                onClick={() => setField('approval_status', status)}
+                style={{
+                  ...s.filterTab,
+                  ...(onboarding.approval_status === status ? {
+                    background: (statusColors[status] || '#555') + '22',
+                    borderColor: statusColors[status] || '#555',
+                    color: statusColors[status] || '#555',
+                  } : {}),
+                  textTransform: 'capitalize',
+                }}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Document checks */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: colors.white, fontSize: '0.9rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={onboarding.insurance_verified}
+              onChange={e => setField('insurance_verified', e.target.checked)}
+              style={{ accentColor: colors.accent, width: '16px', height: '16px' }}
+            />
+            Insurance verified
+          </label>
+          <div>
+            <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Insurance expiry</label>
+            <input
+              type="date"
+              value={onboarding.insurance_expiry}
+              onChange={e => setField('insurance_expiry', e.target.value)}
+              style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+            />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: colors.white, fontSize: '0.9rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={onboarding.license_verified}
+              onChange={e => setField('license_verified', e.target.checked)}
+              style={{ accentColor: colors.accent, width: '16px', height: '16px' }}
+            />
+            Driving licence verified
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: colors.white, fontSize: '0.9rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={onboarding.dbs_verified}
+              onChange={e => setField('dbs_verified', e.target.checked)}
+              style={{ accentColor: colors.accent, width: '16px', height: '16px' }}
+            />
+            DBS check verified
+          </label>
+        </div>
+
+        {/* Notes */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Notes</label>
+          <textarea
+            value={onboarding.notes}
+            onChange={e => setField('notes', e.target.value)}
+            rows={3}
+            style={{ ...s.input, resize: 'vertical', fontFamily: 'inherit' }}
+            placeholder="Internal notes about this driver..."
+          />
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            style={{ ...s.btn, opacity: saving ? 0.6 : 1 }}
+            onClick={saveOnboarding}
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : 'Save changes'}
+          </button>
+          <button
+            style={{ ...s.btnOutline, color: colors.error, borderColor: colors.error, opacity: resetting ? 0.6 : 1 }}
+            onClick={resetAccount}
+            disabled={resetting}
+          >
+            {resetting ? 'Resetting...' : 'Reset account'}
+          </button>
+          {saveMsg && (
+            <span style={{ fontSize: '0.85rem', color: saveMsg === 'Saved' ? '#4ade80' : colors.error }}>{saveMsg}</span>
+          )}
+        </div>
+      </div>
+
       {/* Stats */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
         <div style={s.statCard}>
@@ -108,6 +325,12 @@ export default function DriverDetail() {
         <div style={s.statCard}>
           <p style={s.statValue}>£{Number(data.stats?.avg_payout || 0).toFixed(2)}</p>
           <p style={s.statLabel}>Avg per job</p>
+        </div>
+        <div style={s.statCard}>
+          <p style={s.statValue}>
+            {d.rating ? `${Number(d.rating).toFixed(1)} ★` : '—'}
+          </p>
+          <p style={s.statLabel}>{d.rating_count || 0} reviews</p>
         </div>
       </div>
 

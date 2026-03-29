@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import api from '../lib/api.js';
 import Itinerary from './Itinerary.jsx';
 import InventoryEditor from './InventoryEditor.jsx';
 import SignOff from './SignOff.jsx';
@@ -21,7 +22,7 @@ export default function JobView() {
     const token = localStorage.getItem('driver_token');
     if (!token) { navigate('/login'); return; }
 
-    const res = await fetch(`/api/driver-data?type=job&id=${jobId}`, {
+    const res = await api(`/api/driver-data?type=job&id=${jobId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) { setError('Job not found'); setLoading(false); return; }

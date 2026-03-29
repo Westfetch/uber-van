@@ -3,6 +3,8 @@
 // Triggers Stripe balance charge + payout (stubs for now — Stripe Connect setup required).
 
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
+import { sendEmail, signBookingLink } from './_lib/email.js';
+import { sendSMS } from './_lib/sms.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -17,7 +19,7 @@ export default async function handler(req, res) {
 
   const { data: job } = await admin
     .from('jobs')
-    .select('id, status, driver_id, customer_quote_gbp, balance_gbp, final_total_gbp, stripe_payment_intent_id')
+    .select('id, status, driver_id, customer_quote_gbp, deposit_gbp, balance_gbp, final_total_gbp, stripe_payment_intent_id, customer_email, customer_name, customer_phone, pickup_postcode, destination_postcode, move_date')
     .eq('id', job_id)
     .eq('driver_id', caller.id)
     .maybeSingle();
@@ -66,6 +68,57 @@ export default async function handler(req, res) {
     gross_gbp: gross, platform_fee_gbp: fee, net_gbp: net,
     status: 'pending',
   });
+
+  // Send receipt email to customer
+  if (job.customer_email) {
+    const bookingUrl = signBookingLink(job_id);
+    const custName = job.customer_name?.split(' ')[0] || 'there';
+    const moveDate = new Date(job.move_date).toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    });
+
+    sendEmail({
+      to:      job.customer_email,
+      subject: `Move complete — receipt for ${job.pickup_postcode} to ${job.destination_postcode}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;color:#111">
+          <h2 style="margin-bottom:4px">Hi ${custName},</h2>
+          <p>Your move is complete. Here's your receipt.</p>
+
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Move date</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">${moveDate}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Route</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">${job.pickup_postcode} to ${job.destination_postcode}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Deposit paid</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">&pound;${job.deposit_gbp?.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Balance charged</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">&pound;${(finalTotal - (job.deposit_gbp || 0)).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0"><strong>Total paid</strong></td>
+              <td style="padding:8px 0;font-size:1.2em;font-weight:bold">&pound;${finalTotal.toFixed(2)}</td>
+            </tr>
+          </table>
+
+          <a href="${bookingUrl}" style="display:inline-block;background:#d946ef;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:1.1em;margin:16px 0">
+            View full receipt
+          </a>
+
+          <p style="color:#aaa;font-size:0.8em;margin-top:24px">
+            Thank you for choosing VDM. We hope your move went smoothly.
+          </p>
+        </div>
+      `,
+    }).catch(err => console.error('[complete-job] Receipt email failed:', err));
+  }
 
   res.json({ ok: true, final_total_gbp: finalTotal });
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import api from '../lib/api.js';
 
 export default function DriverLogin({ onLogin }) {
   const [name, setName]           = useState('');
@@ -11,7 +12,7 @@ export default function DriverLogin({ onLogin }) {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/driver-auth', {
+      const res = await api('/api/driver-auth', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ name: name.trim(), setupCode: setupCode.trim() }),

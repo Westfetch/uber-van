@@ -9,7 +9,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin, signDriverToken, verifyDriver } from './_lib/auth.js';
 
-const SAFE_COLS = 'id, name, phone, depot_postcode, van_size, online, push_subscription';
+const SAFE_COLS = 'id, name, phone, depot_postcode, van_size, online, push_subscription, approval_status';
 
 function hashCode(code) {
   return crypto.createHash('sha256').update(code.trim().toUpperCase()).digest('hex');
@@ -29,6 +29,8 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (error || !driver) return res.status(404).json({ error: 'Driver not found' });
+    if (driver.approval_status === 'suspended')
+      return res.status(403).json({ error: 'Your account has been suspended' });
     return res.json({ driver });
   }
 
@@ -64,6 +66,12 @@ export default async function handler(req, res) {
   const match  = stored.length === given.length && crypto.timingSafeEqual(stored, given);
 
   if (!match) return res.status(401).json({ error: 'Invalid name or setup code' });
+
+  // Block unapproved / suspended drivers
+  if (driver.approval_status === 'suspended')
+    return res.status(403).json({ error: 'Your account has been suspended — contact the platform' });
+  if (driver.approval_status !== 'approved')
+    return res.status(403).json({ error: 'Your account is pending approval — we\'ll be in touch soon' });
 
   // Clear setup code — single use
   await admin

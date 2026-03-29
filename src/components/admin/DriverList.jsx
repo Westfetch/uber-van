@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
-import { s, colors } from './styles.js';
+import api from '../../lib/api.js';
+import { s, colors, statusColors } from './styles.js';
 
 export default function DriverList() {
   const { token }  = useAdmin();
@@ -10,7 +11,7 @@ export default function DriverList() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin?action=drivers', {
+    api('/api/admin?action=drivers', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : { drivers: [] })
@@ -40,6 +41,8 @@ export default function DriverList() {
                 <th style={s.th}>Van</th>
                 <th style={s.th}>Depot</th>
                 <th style={s.th}>Status</th>
+                <th style={s.th}>Approval</th>
+                <th style={s.th}>Rating</th>
                 <th style={s.th}>Jobs</th>
                 <th style={s.th}>Earned</th>
               </tr>
@@ -67,6 +70,23 @@ export default function DriverList() {
                       marginRight: '6px',
                     }} />
                     {d.online ? 'Online' : 'Offline'}
+                  </td>
+                  <td style={s.td}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 10px',
+                      borderRadius: '999px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      background: (statusColors[d.approval_status] || '#555') + '22',
+                      color: statusColors[d.approval_status] || '#555',
+                      textTransform: 'capitalize',
+                    }}>
+                      {d.approval_status || 'pending'}
+                    </span>
+                  </td>
+                  <td style={{ ...s.td, color: d.rating ? colors.white : colors.muted }}>
+                    {d.rating ? `${Number(d.rating).toFixed(1)} (${d.rating_count})` : '-'}
                   </td>
                   <td style={s.td}>{d.job_count || 0}</td>
                   <td style={s.td}>£{Number(d.total_earned || 0).toFixed(2)}</td>

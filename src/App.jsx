@@ -5,6 +5,9 @@ import DriverDashboard from './components/DriverDashboard.jsx';
 import JobOffer from './components/JobOffer.jsx';
 import JobView from './components/JobView.jsx';
 import AdminShell from './components/admin/AdminShell.jsx';
+import BookingPortal from './components/booking/BookingPortal.jsx';
+import DriverLanding from './components/DriverLanding.jsx';
+import api from './lib/api.js';
 
 export default function App() {
   const [driver, setDriver]   = useState(null);
@@ -15,7 +18,7 @@ export default function App() {
     const token = localStorage.getItem('driver_token');
     if (!token) { setChecking(false); return; }
 
-    fetch('/api/driver-auth', {
+    api('/api/driver-auth', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)
@@ -36,6 +39,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Customer booking portal — public, token auth via query param */}
+        <Route path="/booking/:id" element={<BookingPortal />} />
+
+        {/* Driver onboarding landing page — public */}
+        <Route path="/driver/get-started" element={<DriverLanding />} />
+
         {/* Admin dashboard — own auth, independent of driver state */}
         <Route path="/admin/*" element={<AdminShell />} />
 

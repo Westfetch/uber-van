@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
+import api from '../../lib/api.js';
 import { s, colors } from './styles.js';
 
 const VAN_SIZES = ['transit', 'luton', 'large_luton', '7.5t'];
@@ -20,7 +21,7 @@ export default function DriverForm() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/admin?action=driver-create', {
+      const res = await api('/api/admin?action=driver-create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(form),

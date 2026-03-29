@@ -24,6 +24,9 @@ export const statusColors = {
   pending:            '#f59e0b',
   transferred:        '#888',
   failed:             '#f87171',
+  // onboarding statuses
+  approved:           '#4ade80',
+  suspended:          '#f87171',
 };
 
 export const s = {

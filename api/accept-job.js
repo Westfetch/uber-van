@@ -7,6 +7,8 @@
 
 import Stripe from 'stripe';
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
+import { sendEmail, signBookingLink } from './_lib/email.js';
+import { sendSMS } from './_lib/sms.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -41,7 +43,7 @@ export default async function handler(req, res) {
     .update({ status: 'accepted', driver_id: caller.id, accepted_at: new Date().toISOString() })
     .eq('id', offer.job_id)
     .eq('status', 'pending_acceptance')
-    .select('id, pickup_postcode, destination_postcode, move_date, start_time, customer_quote_gbp, deposit_gbp, balance_gbp, context_block, quote_data, effective_volume_cuft, van_loads, crew_required, stripe_payment_intent_id')
+    .select('id, pickup_postcode, destination_postcode, move_date, start_time, customer_quote_gbp, deposit_gbp, balance_gbp, context_block, quote_data, effective_volume_cuft, van_loads, crew_required, stripe_payment_intent_id, customer_email, customer_name, customer_phone')
     .maybeSingle();
 
   if (jobErr || !job) return res.status(409).json({ error: 'Job no longer available' });
@@ -73,6 +75,70 @@ export default async function handler(req, res) {
     payload:    { driver_id: caller.id, offer_id, payout_gbp: offer.driver_payout_gbp },
     created_by: 'driver',
   });
+
+  // Notify customer: driver assigned, deposit captured
+  if (job.customer_email) {
+    const { data: driverRow } = await admin
+      .from('drivers').select('name').eq('id', caller.id).maybeSingle();
+    const driverName = driverRow?.name?.split(' ')[0] || 'Your driver';
+    const moveDate = new Date(job.move_date).toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    });
+    const bookingUrl = signBookingLink(offer.job_id);
+    const custName = job.customer_name?.split(' ')[0] || 'there';
+
+    // SMS: driver assigned
+    if (job.customer_phone) {
+      sendSMS({
+        to: job.customer_phone,
+        body: `Your move on ${moveDate} is confirmed! ${driverName} will be at ${job.pickup_postcode} at ${job.start_time || '08:00'}. Track your booking: ${bookingUrl}`,
+      }).catch(err => console.error('[accept-job] Customer SMS failed:', err));
+    }
+
+    sendEmail({
+      to:      job.customer_email,
+      subject: `You're booked! ${driverName} confirmed for ${job.pickup_postcode} to ${job.destination_postcode}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;color:#111">
+          <h2 style="margin-bottom:4px">Hi ${custName},</h2>
+          <p><strong>${driverName}</strong> has confirmed your move. Your deposit has been charged.</p>
+
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Date</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">${moveDate}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Start time</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">${job.start_time || '08:00'}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Pickup</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">${job.pickup_postcode}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Driver</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">${driverName}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0"><strong>Deposit charged</strong></td>
+              <td style="padding:8px 0">&pound;${job.deposit_gbp?.toFixed(2)}</td>
+            </tr>
+          </table>
+
+          <p style="color:#666;font-size:0.9em">Balance of &pound;${job.balance_gbp?.toFixed(2)} is due on the day of your move.</p>
+
+          <a href="${bookingUrl}" style="display:inline-block;background:#d946ef;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:1.1em;margin:16px 0">
+            View your booking
+          </a>
+
+          <p style="color:#aaa;font-size:0.8em;margin-top:24px">
+            You'll get a text on move day with live inventory updates.
+          </p>
+        </div>
+      `,
+    }).catch(err => console.error('[accept-job] Customer email failed:', err));
+  }
 
   res.json({ ok: true, job });
 }

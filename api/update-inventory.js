@@ -6,6 +6,14 @@
 // Authorization: Bearer <driver-token>
 
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
+import { sendSMS } from './_lib/sms.js';
+import { signBookingLink } from './_lib/email.js';
+
+function isMoveDay(moveDate) {
+  if (!moveDate) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return moveDate.slice(0, 10) === today;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -21,7 +29,7 @@ export default async function handler(req, res) {
   // Verify the driver owns this job
   const { data: job } = await admin
     .from('jobs')
-    .select('id, status, driver_id, customer_quote_gbp, balance_gbp')
+    .select('id, status, driver_id, customer_quote_gbp, balance_gbp, move_date, customer_phone')
     .eq('id', job_id)
     .eq('driver_id', caller.id)
     .maybeSingle();
@@ -45,6 +53,15 @@ export default async function handler(req, res) {
       created_by: 'driver',
     });
 
+    // SMS on move day: inventory change
+    if (isMoveDay(job.move_date) && job.customer_phone) {
+      const bookingUrl = signBookingLink(job_id);
+      sendSMS({
+        to: job.customer_phone,
+        body: `Your driver added ${canonical_name} (x${quantity})${price_delta_gbp > 0 ? ` +£${price_delta_gbp.toFixed(2)}` : ''}. View your inventory: ${bookingUrl}`,
+      }).catch(err => console.error('[update-inventory] SMS failed:', err));
+    }
+
     return res.json({ ok: true, item });
   }
 
@@ -67,6 +84,15 @@ export default async function handler(req, res) {
       payload:    { item_id, canonical_name: item.canonical_name },
       created_by: 'driver',
     });
+
+    // SMS on move day: item removed
+    if (isMoveDay(job.move_date) && job.customer_phone) {
+      const bookingUrl = signBookingLink(job_id);
+      sendSMS({
+        to: job.customer_phone,
+        body: `Your driver removed ${item.canonical_name} from your inventory. View updates: ${bookingUrl}`,
+      }).catch(err => console.error('[update-inventory] SMS failed:', err));
+    }
 
     return res.json({ ok: true });
   }

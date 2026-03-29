@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
+import api from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
 import { s, colors } from './styles.js';
 
@@ -12,7 +13,7 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/admin?action=job&id=${jobId}`, {
+    api(`/api/admin?action=job&id=${jobId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)

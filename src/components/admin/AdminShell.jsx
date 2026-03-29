@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { startRegistration } from '@simplewebauthn/browser';
+import api from '../../lib/api.js';
 import { AdminProvider } from './AdminContext.jsx';
 import AdminLogin from './AdminLogin.jsx';
 import JobPipeline from './JobPipeline.jsx';
@@ -31,7 +32,7 @@ export default function AdminShell() {
     const token = localStorage.getItem('admin_token');
     if (!token) { setChecking(false); return; }
 
-    fetch('/api/admin-auth', {
+    api('/api/admin-auth', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)
@@ -99,7 +100,7 @@ export default function AdminShell() {
                   try {
                     const token = localStorage.getItem('admin_token');
                     // Get registration options
-                    const optRes = await fetch('/api/admin-auth?action=webauthn-register&phase=options', {
+                    const optRes = await api('/api/admin-auth?action=webauthn-register&phase=options', {
                       method: 'POST',
                       headers: { Authorization: `Bearer ${token}` },
                     });
@@ -110,7 +111,7 @@ export default function AdminShell() {
                     const credential = await startRegistration({ optionsJSON: options });
 
                     // Send to server
-                    const verRes = await fetch('/api/admin-auth?action=webauthn-register&phase=verify', {
+                    const verRes = await api('/api/admin-auth?action=webauthn-register&phase=verify', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify(credential),

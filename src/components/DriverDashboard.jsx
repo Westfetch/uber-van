@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../lib/api.js';
 
 function formatDate(d) {
   return new Date(d).toLocaleDateString('en-GB', {
@@ -42,7 +43,7 @@ export default function DriverDashboard({ driver, onLogout }) {
   useEffect(() => {
     async function load() {
       const token = localStorage.getItem('driver_token');
-      const res = await fetch('/api/driver-jobs', {
+      const res = await api('/api/driver-jobs', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {

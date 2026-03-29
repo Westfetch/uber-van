@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAdmin } from './AdminContext.jsx';
+import api from '../../lib/api.js';
 import { s, colors } from './styles.js';
 
 export default function MessageList() {
@@ -21,7 +22,7 @@ export default function MessageList() {
     if (filter === 'unread') params.set('read', 'false');
     if (filter === 'read') params.set('read', 'true');
 
-    const res = await fetch(`/api/admin?${params}`, {
+    const res = await api(`/api/admin?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await res.json();
@@ -34,7 +35,7 @@ export default function MessageList() {
   }
 
   async function markRead(id) {
-    await fetch('/api/admin?action=message-read', {
+    await api('/api/admin?action=message-read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ id }),

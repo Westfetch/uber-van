@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
+import api from '../../lib/api.js';
 import { colors } from './styles.js';
 
 export default function AdminLogin({ onLogin }) {
@@ -12,7 +13,7 @@ export default function AdminLogin({ onLogin }) {
 
   // Check if biometric credentials exist
   useEffect(() => {
-    fetch('/api/admin-auth?action=webauthn-auth-options')
+    api('/api/admin-auth?action=webauthn-auth-options')
       .then(r => {
         if (r.ok) setHasBiometric(true);
         // 404 = no credentials registered, that's fine
@@ -31,7 +32,7 @@ export default function AdminLogin({ onLogin }) {
     setLoading(true);
     try {
       // Get fresh challenge options
-      const optRes = await fetch('/api/admin-auth?action=webauthn-auth-options');
+      const optRes = await api('/api/admin-auth?action=webauthn-auth-options');
       if (!optRes.ok) throw new Error('Biometric not available');
       const options = await optRes.json();
 
@@ -39,7 +40,7 @@ export default function AdminLogin({ onLogin }) {
       const credential = await startAuthentication({ optionsJSON: options });
 
       // Verify with server
-      const verRes = await fetch('/api/admin-auth?action=webauthn-auth', {
+      const verRes = await api('/api/admin-auth?action=webauthn-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credential),
@@ -64,7 +65,7 @@ export default function AdminLogin({ onLogin }) {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/admin-auth', {
+      const res = await api('/api/admin-auth', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: email.trim(), password }),

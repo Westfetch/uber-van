@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import api from '../lib/api.js';
 
 const OFFER_EXPIRED_MSG = 'This offer has expired or is no longer available.';
 
@@ -41,7 +42,7 @@ export default function JobOffer() {
       const token = localStorage.getItem('driver_token');
       if (!token) { navigate('/login'); return; }
 
-      const res = await fetch(`/api/driver-data?type=offer&id=${offerId}`, {
+      const res = await api(`/api/driver-data?type=offer&id=${offerId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) { setError(OFFER_EXPIRED_MSG); setLoading(false); return; }
@@ -72,7 +73,7 @@ export default function JobOffer() {
     if (acting || expired) return;
     setActing(true);
     const token = localStorage.getItem('driver_token');
-    const res   = await fetch('/api/accept-job', {
+    const res   = await api('/api/accept-job', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body:    JSON.stringify({ offer_id: offerId }),
@@ -86,7 +87,7 @@ export default function JobOffer() {
     if (acting) return;
     setActing(true);
     const token = localStorage.getItem('driver_token');
-    await fetch('/api/decline-job', {
+    await api('/api/decline-job', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body:    JSON.stringify({ offer_id: offerId }),
