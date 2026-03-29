@@ -67,6 +67,28 @@ export default async function handler(req, res) {
     customer_quote_gbp, deposit_gbp, balance_gbp, stripe_payment_intent_id,
   } = body;
 
+  // Validate payment amounts
+  if (typeof customer_quote_gbp !== 'number' || customer_quote_gbp <= 0 || customer_quote_gbp > 10000)
+    return res.status(400).json({ error: 'customer_quote_gbp must be between 0 and 10000' });
+  if (typeof deposit_gbp !== 'number' || deposit_gbp < 0)
+    return res.status(400).json({ error: 'deposit_gbp must be non-negative' });
+  if (typeof balance_gbp !== 'number' || balance_gbp < 0)
+    return res.status(400).json({ error: 'balance_gbp must be non-negative' });
+  const amountDrift = Math.abs((deposit_gbp + balance_gbp) - customer_quote_gbp);
+  if (amountDrift > 0.02)
+    return res.status(400).json({ error: 'deposit_gbp + balance_gbp must equal customer_quote_gbp' });
+
+  // Deduplication: reject if funnel_job_ref already exists
+  if (funnel_job_ref) {
+    const { data: existing } = await admin
+      .from('jobs')
+      .select('id')
+      .eq('funnel_job_ref', funnel_job_ref)
+      .maybeSingle();
+    if (existing)
+      return res.json({ ok: true, job_id: existing.id, deduplicated: true });
+  }
+
   // Create the job
   const { data: job, error: jobErr } = await admin
     .from('jobs')

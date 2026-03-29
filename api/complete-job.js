@@ -30,7 +30,15 @@ export default async function handler(req, res) {
   if (!['accepted', 'in_progress'].includes(job.status))
     return res.status(409).json({ error: 'Job is not in a completable state' });
 
-  const finalTotal = job.final_total_gbp || job.customer_quote_gbp;
+  // Recalculate final total server-side from quote + active item deltas
+  const { data: items } = await admin
+    .from('job_items')
+    .select('price_delta_gbp')
+    .eq('job_id', job_id)
+    .eq('active', true);
+
+  const itemDeltas = (items || []).reduce((sum, i) => sum + Math.max(0, Number(i.price_delta_gbp) || 0), 0);
+  const finalTotal = Number(job.customer_quote_gbp) + itemDeltas;
 
   // Mark completed
   await admin

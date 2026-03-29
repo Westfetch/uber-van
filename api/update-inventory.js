@@ -43,6 +43,10 @@ export default async function handler(req, res) {
   if (action === 'add_item') {
     const { canonical_name, quantity = 1, volume_cuft, price_delta_gbp = 0 } = req.body;
     if (!canonical_name) return res.status(400).json({ error: 'canonical_name required' });
+    if (typeof price_delta_gbp !== 'number' || price_delta_gbp < 0 || price_delta_gbp > 5000)
+      return res.status(400).json({ error: 'price_delta_gbp must be between 0 and 5000' });
+    if (typeof quantity !== 'number' || quantity < 1 || quantity > 100)
+      return res.status(400).json({ error: 'quantity must be between 1 and 100' });
 
     const { data: item } = await admin.from('job_items').insert({
       job_id, canonical_name, quantity, volume_cuft,

@@ -15,13 +15,13 @@ export default async function handler(req, res) {
 
   const action = req.query.action;
 
-  // Cron endpoint — accepts CRON_SECRET instead of admin token
+  // Cron endpoint — CRON_SECRET only, no admin token fallback
   if (action === 'cron-run') {
-    const cronAuth = req.headers['authorization'] === `Bearer ${process.env.CRON_SECRET}`;
-    if (!cronAuth) {
-      const admin = await verifyAdmin(req);
-      if (!admin) return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || cronSecret.length < 32)
+      return res.status(500).json({ error: 'CRON_SECRET not configured or too short' });
+    if (req.headers['authorization'] !== `Bearer ${cronSecret}`)
+      return res.status(401).json({ error: 'Unauthorized' });
     const sb = getSupabaseAdmin();
     return handleCronRun(req, res, sb);
   }

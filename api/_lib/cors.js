@@ -1,12 +1,13 @@
 // CORS helper for Capacitor APK (and any future cross-origin clients).
 // Usage: if (cors(req, res)) return;   // handles OPTIONS preflight and sets headers
 
+const IS_DEV = process.env.NODE_ENV !== 'production' && !process.env.VERCEL;
+
 const ALLOWED_ORIGINS = [
   process.env.CORS_ORIGIN,            // e.g. https://uber-van.vercel.app
   'capacitor://localhost',             // Android Capacitor
   'ionic://localhost',                 // iOS Capacitor
-  'http://localhost:5173',             // Vite dev
-  'http://localhost:5174',
+  ...(IS_DEV ? ['http://localhost:5173', 'http://localhost:5174'] : []),
 ].filter(Boolean);
 
 export default function cors(req, res) {
