@@ -1,7 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/job-offer/:id", "destination": "/api/job-offer?id=:id" },
-    { "source": "/api/job/:id",       "destination": "/api/job?id=:id" },
     { "source": "/(.*)",              "destination": "/index.html" }
   ]
 }

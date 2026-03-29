@@ -1,6 +1,6 @@
 // /api/admin?action=<action> — Consolidated admin API
 // All routes require admin auth (Bearer token).
-// Actions: jobs, job, drivers, driver, driver-create, driver-setup-code, payouts
+// Actions: jobs, job, drivers, driver, driver-create, driver-setup-code, payouts, messages, message-read
 
 import crypto from 'crypto';
 import { verifyAdmin, getSupabaseAdmin } from './_lib/auth.js';
@@ -19,8 +19,10 @@ export default async function handler(req, res) {
     case 'driver':  return handleDriver(req, res, sb);
     case 'driver-create':     return handleDriverCreate(req, res, sb);
     case 'driver-setup-code': return handleDriverSetupCode(req, res, sb);
-    case 'payouts': return handlePayouts(req, res, sb);
-    default:        return res.status(400).json({ error: `Unknown action: ${action}` });
+    case 'payouts':      return handlePayouts(req, res, sb);
+    case 'messages':     return handleMessages(req, res, sb);
+    case 'message-read': return handleMessageRead(req, res, sb);
+    default:             return res.status(400).json({ error: `Unknown action: ${action}` });
   }
 }
 
@@ -215,4 +217,42 @@ async function handlePayouts(req, res, sb) {
   }));
 
   res.json({ payouts: mapped, summary, total: count || 0, page: pg, pages: Math.ceil((count || 0) / lim) });
+}
+
+// ── Messages list ─────────────────────────────────────────────────────────────
+async function handleMessages(req, res, sb) {
+  const { read, page = '1', limit = '20' } = req.query;
+  const pg     = Math.max(1, parseInt(page));
+  const lim    = Math.min(100, Math.max(1, parseInt(limit)));
+  const offset = (pg - 1) * lim;
+
+  let query = sb
+    .from('messages')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + lim - 1);
+
+  if (read === 'true')  query = query.eq('read', true);
+  if (read === 'false') query = query.eq('read', false);
+
+  const { data: messages, count, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Unread count
+  const { count: unread } = await sb.from('messages').select('*', { count: 'exact', head: true }).eq('read', false);
+
+  res.json({ messages: messages || [], unread: unread || 0, total: count || 0, page: pg, pages: Math.ceil((count || 0) / lim) });
+}
+
+// ── Mark message as read ────────────────────────────────────────────────────
+async function handleMessageRead(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'Message ID required' });
+
+  const { error } = await sb.from('messages').update({ read: true }).eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ success: true });
 }

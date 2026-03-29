@@ -41,7 +41,7 @@ export default function JobOffer() {
       const token = localStorage.getItem('driver_token');
       if (!token) { navigate('/login'); return; }
 
-      const res = await fetch(`/api/job-offer/${offerId}`, {
+      const res = await fetch(`/api/driver-data?type=offer&id=${offerId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) { setError(OFFER_EXPIRED_MSG); setLoading(false); return; }

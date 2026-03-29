@@ -9,12 +9,14 @@ import DriverList from './DriverList.jsx';
 import DriverForm from './DriverForm.jsx';
 import DriverDetail from './DriverDetail.jsx';
 import PayoutList from './PayoutList.jsx';
+import MessageList from './MessageList.jsx';
 import { s, colors } from './styles.js';
 
 const NAV = [
   { path: '/admin/jobs',    label: 'Jobs' },
   { path: '/admin/drivers', label: 'Drivers' },
-  { path: '/admin/payouts', label: 'Payouts' },
+  { path: '/admin/payouts',  label: 'Payouts' },
+  { path: '/admin/messages', label: 'Messages' },
 ];
 
 export default function AdminShell() {
@@ -163,6 +165,7 @@ export default function AdminShell() {
             <Route path="drivers/new" element={<DriverForm />} />
             <Route path="drivers/:driverId" element={<DriverDetail />} />
             <Route path="payouts" element={<PayoutList />} />
+            <Route path="messages" element={<MessageList />} />
             <Route path="*" element={<Navigate to="/admin/jobs" replace />} />
           </Routes>
         </main>

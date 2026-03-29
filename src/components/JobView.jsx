@@ -21,7 +21,7 @@ export default function JobView() {
     const token = localStorage.getItem('driver_token');
     if (!token) { navigate('/login'); return; }
 
-    const res = await fetch(`/api/job/${jobId}`, {
+    const res = await fetch(`/api/driver-data?type=job&id=${jobId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) { setError('Job not found'); setLoading(false); return; }
