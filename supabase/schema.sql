@@ -21,7 +21,7 @@ create table if not exists drivers (
   phone                  text,
   email                  text,
   depot_postcode         text not null,
-  van_size               text not null check (van_size in ('transit','luton','large_luton','7.5t')),
+  van_size               text not null check (van_size in ('swb','mwb','lwb','luton','7.5t')),
   stripe_account_id      text,                 -- Stripe Connect express account ID
   online                 boolean not null default false,
   setup_code_hash        varchar(64),          -- SHA-256 of one-time setup code, cleared on use
@@ -53,6 +53,7 @@ create table if not exists jobs (
   effective_volume_cuft     numeric,
   van_loads                 int,
   crew_required             int,
+  van_size                  text default 'luton',  -- van category quoted for this job
 
   -- Financials
   customer_quote_gbp        numeric not null,

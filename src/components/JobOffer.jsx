@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
+import { getVanLabel } from '../lib/vanConfig.js';
 
 const OFFER_EXPIRED_MSG = 'This offer has expired or is no longer available.';
 
@@ -140,7 +141,7 @@ export default function JobOffer() {
             <Flag label={`${job.quote_data.access.pickup.stair_count} flight stairs (pickup)`} color="#065f46" />}
           {job?.quote_data?.access?.destination?.floor === 0 &&
             <Flag label="Ground floor (drop-off)" color="#065f46" />}
-          {vanLoads <= 1 && <Flag label="Luton fits" color="#065f46" />}
+          {vanLoads <= 1 && <Flag label={`Fits in ${getVanLabel(job?.van_size || 'luton', 'customer')}`} color="#065f46" />}
         </div>
 
         <div style={styles.statsGrid}>
@@ -155,8 +156,8 @@ export default function JobOffer() {
             <div style={styles.statLabel}>Your distance</div>
           </div>
           <div style={styles.stat}>
-            <div style={styles.statValue}>{vanLoads} load</div>
-            <div style={styles.statLabel}>Van loads</div>
+            <div style={styles.statValue}>{vanLoads} {getVanLabel(job?.van_size || 'luton', 'customer')}</div>
+            <div style={styles.statLabel}>{vanLoads > 1 ? 'loads' : 'load'}</div>
           </div>
           <div style={styles.stat}>
             <div style={styles.statValue}>{crew}-person</div>

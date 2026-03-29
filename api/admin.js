@@ -7,6 +7,7 @@ import { verifyAdmin, getSupabaseAdmin } from './_lib/auth.js';
 import cors from './_lib/cors.js';
 import { sendEmail } from './_lib/email.js';
 import { sendSMS } from './_lib/sms.js';
+import { VAN_DB_VALUES } from './_lib/vanConfig.js';
 
 export default async function handler(req, res) {
   if (cors(req, res)) return;
@@ -151,6 +152,7 @@ async function handleDriverCreate(req, res, sb) {
 
   const { name, phone, email, van_size, depot_postcode } = req.body || {};
   if (!name || !van_size || !depot_postcode) return res.status(400).json({ error: 'Name, van_size, and depot_postcode are required' });
+  if (!VAN_DB_VALUES.includes(van_size)) return res.status(400).json({ error: `Invalid van_size. Must be one of: ${VAN_DB_VALUES.join(', ')}` });
 
   const { data: driver, error } = await sb
     .from('drivers')
@@ -201,7 +203,10 @@ async function handleDriverUpdate(req, res, sb) {
   if (name !== undefined)           updates.name = name;
   if (phone !== undefined)          updates.phone = phone || null;
   if (email !== undefined)          updates.email = email || null;
-  if (van_size !== undefined)       updates.van_size = van_size;
+  if (van_size !== undefined) {
+    if (!VAN_DB_VALUES.includes(van_size)) return res.status(400).json({ error: `Invalid van_size. Must be one of: ${VAN_DB_VALUES.join(', ')}` });
+    updates.van_size = van_size;
+  }
   if (depot_postcode !== undefined) updates.depot_postcode = depot_postcode;
   // Onboarding fields
   if (approval_status !== undefined)   updates.approval_status = approval_status;

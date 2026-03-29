@@ -62,7 +62,7 @@ export default async function handler(req, res) {
   const {
     funnel_job_ref, customer_name, customer_phone, customer_email,
     pickup_postcode, destination_postcode, move_date, start_time,
-    context_block, quote_data, effective_volume_cuft, van_loads, crew_required,
+    context_block, quote_data, effective_volume_cuft, van_loads, crew_required, van_size,
     customer_quote_gbp, deposit_gbp, balance_gbp, stripe_payment_intent_id,
   } = body;
 
@@ -78,6 +78,7 @@ export default async function handler(req, res) {
       move_date, start_time,
       context_block, quote_data,
       effective_volume_cuft, van_loads, crew_required,
+      van_size: van_size || 'luton',
       customer_quote_gbp, deposit_gbp, balance_gbp,
       stripe_payment_intent_id,
       status: 'pending_acceptance',

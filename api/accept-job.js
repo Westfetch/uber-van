@@ -9,6 +9,7 @@ import Stripe from 'stripe';
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
 import { sendEmail, signBookingLink } from './_lib/email.js';
 import { sendSMS } from './_lib/sms.js';
+import { getVanLabel } from './_lib/vanConfig.js';
 import cors from './_lib/cors.js';
 
 export default async function handler(req, res) {
@@ -81,8 +82,9 @@ export default async function handler(req, res) {
   // Notify customer: driver assigned, deposit captured
   if (job.customer_email) {
     const { data: driverRow } = await admin
-      .from('drivers').select('name').eq('id', caller.id).maybeSingle();
+      .from('drivers').select('name, van_size').eq('id', caller.id).maybeSingle();
     const driverName = driverRow?.name?.split(' ')[0] || 'Your driver';
+    const vanLabel = getVanLabel(driverRow?.van_size || 'luton', 'customer');
     const moveDate = new Date(job.move_date).toLocaleDateString('en-GB', {
       weekday: 'long', day: 'numeric', month: 'long',
     });
@@ -93,7 +95,7 @@ export default async function handler(req, res) {
     if (job.customer_phone) {
       sendSMS({
         to: job.customer_phone,
-        body: `Your move on ${moveDate} is confirmed! ${driverName} will be at ${job.pickup_postcode} at ${job.start_time || '08:00'}. Track your booking: ${bookingUrl}`,
+        body: `Your move on ${moveDate} is confirmed! ${driverName} will arrive at ${job.pickup_postcode} at ${job.start_time || '08:00'} in a ${vanLabel}. Track your booking: ${bookingUrl}`,
       }).catch(err => console.error('[accept-job] Customer SMS failed:', err));
     }
 
@@ -121,6 +123,10 @@ export default async function handler(req, res) {
             <tr>
               <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Driver</strong></td>
               <td style="padding:8px 0;border-bottom:1px solid #eee">${driverName}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;border-bottom:1px solid #eee"><strong>Vehicle</strong></td>
+              <td style="padding:8px 0;border-bottom:1px solid #eee">${vanLabel.charAt(0).toUpperCase() + vanLabel.slice(1)}</td>
             </tr>
             <tr>
               <td style="padding:8px 0"><strong>Deposit charged</strong></td>

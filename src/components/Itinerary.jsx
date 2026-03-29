@@ -1,6 +1,8 @@
 // Itinerary tab — shown on the day of the job
 // Shows route, access notes, start time, customer phone, inventory summary
 
+import { getVanLabel } from '../lib/vanConfig.js';
+
 function AccessNote({ label, access }) {
   if (!access) return null;
   const lines = [
@@ -49,6 +51,10 @@ export default function Itinerary({ job }) {
         <div style={styles.detailRow}>
           <span style={styles.detailKey}>Start time</span>
           <span style={styles.detailVal}>{job.start_time || '08:00'}</span>
+        </div>
+        <div style={styles.detailRow}>
+          <span style={styles.detailKey}>Vehicle</span>
+          <span style={styles.detailVal}>{(job.van_loads || 1) > 1 ? `${job.van_loads}x ` : ''}{getVanLabel(job.van_size || 'luton', 'customer')}</span>
         </div>
         <div style={styles.detailRow}>
           <span style={styles.detailKey}>Crew</span>

@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdmin } from './AdminContext.jsx';
 import api from '../../lib/api.js';
 import { s, colors } from './styles.js';
-
-const VAN_SIZES = ['transit', 'luton', 'large_luton', '7.5t'];
+import { VAN_CONFIG, VAN_DB_VALUES } from '../../lib/vanConfig.js';
 
 export default function DriverForm() {
   const { token }  = useAdmin();
@@ -63,7 +62,7 @@ export default function DriverForm() {
               value={form.van_size}
               onChange={e => set('van_size', e.target.value)}
             >
-              {VAN_SIZES.map(v => <option key={v} value={v}>{v}</option>)}
+              {VAN_DB_VALUES.map(v => <option key={v} value={v}>{VAN_CONFIG[v].adminLabel}</option>)}
             </select>
           </div>
           <div>

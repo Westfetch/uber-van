@@ -4,6 +4,7 @@ import { useAdmin } from './AdminContext.jsx';
 import api from '../../lib/api.js';
 import { exportCSV } from './exportCSV.js';
 import { s, colors, statusColors } from './styles.js';
+import { getVanLabel } from '../../lib/vanConfig.js';
 
 export default function DriverList() {
   const { token }  = useAdmin();
@@ -62,7 +63,7 @@ export default function DriverList() {
                 >
                   <td style={s.td}>{d.name}</td>
                   <td style={{ ...s.td, color: colors.muted }}>{d.phone || '-'}</td>
-                  <td style={s.td}>{d.van_size}</td>
+                  <td style={s.td}>{getVanLabel(d.van_size)}</td>
                   <td style={{ ...s.td, color: colors.muted }}>{d.depot_postcode}</td>
                   <td style={s.td}>
                     <span style={{

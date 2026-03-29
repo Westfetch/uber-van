@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   // Fetch job
   const { data: job, error: jobErr } = await db
     .from('jobs')
-    .select('id, status, pickup_postcode, destination_postcode, move_date, start_time, customer_name, customer_quote_gbp, deposit_gbp, balance_gbp, van_loads, crew_required, accepted_at, completed_at, customer_token_hash, driver_id')
+    .select('id, status, pickup_postcode, destination_postcode, move_date, start_time, customer_name, customer_quote_gbp, deposit_gbp, balance_gbp, van_loads, crew_required, van_size, accepted_at, completed_at, customer_token_hash, driver_id')
     .eq('id', id)
     .maybeSingle();
 
@@ -76,6 +76,7 @@ export default async function handler(req, res) {
     balance_gbp:           job.balance_gbp,
     van_loads:             job.van_loads,
     crew_required:         job.crew_required,
+    van_size:              job.van_size || 'luton',
     accepted_at:           job.accepted_at,
     completed_at:          job.completed_at,
     driver_name:           null,

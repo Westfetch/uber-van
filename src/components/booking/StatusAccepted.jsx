@@ -1,6 +1,8 @@
 // StatusAccepted — driver confirmed, deposit captured
 // Shows driver name, date/time/location, countdown to move day
 
+import { getVanLabel } from '../../lib/vanConfig.js';
+
 export default function StatusAccepted({ booking }) {
   const formatDate = d => new Date(d).toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long',
@@ -25,7 +27,7 @@ export default function StatusAccepted({ booking }) {
         <h2 style={styles.heading}>You're booked!</h2>
         {booking.driver_name && (
           <p style={styles.driverIntro}>
-            {booking.driver_name} will be handling your move
+            {booking.driver_name} will be arriving in a {getVanLabel(booking.van_size || 'luton', 'customer')}
           </p>
         )}
       </div>
@@ -51,6 +53,10 @@ export default function StatusAccepted({ booking }) {
             <span style={styles.detailVal}>{booking.driver_name}</span>
           </div>
         )}
+        <div style={styles.detailRow}>
+          <span style={styles.detailKey}>Vehicle</span>
+          <span style={styles.detailVal}>{booking.van_loads > 1 ? `${booking.van_loads}x ` : ''}{getVanLabel(booking.van_size || 'luton', 'customer')}</span>
+        </div>
         <div style={styles.detailRow}>
           <span style={styles.detailKey}>Crew</span>
           <span style={styles.detailVal}>{booking.crew_required}-person</span>

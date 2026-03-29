@@ -35,7 +35,7 @@ async function handleJob(req, res, sb, caller) {
     .select(`
       id, pickup_postcode, destination_postcode, move_date, start_time,
       customer_quote_gbp, deposit_gbp, balance_gbp, final_total_gbp,
-      status, context_block, quote_data, effective_volume_cuft, van_loads, crew_required,
+      status, context_block, quote_data, effective_volume_cuft, van_loads, crew_required, van_size,
       actual_miles, customer_name, customer_phone
     `)
     .eq('id', jobId)
@@ -62,7 +62,7 @@ async function handleOffer(req, res, sb, caller) {
 
   const { data: job } = await sb
     .from('jobs')
-    .select('id, pickup_postcode, destination_postcode, move_date, start_time, customer_quote_gbp, context_block, quote_data, effective_volume_cuft, van_loads, crew_required')
+    .select('id, pickup_postcode, destination_postcode, move_date, start_time, customer_quote_gbp, context_block, quote_data, effective_volume_cuft, van_loads, crew_required, van_size')
     .eq('id', offer.job_id)
     .maybeSingle();
 

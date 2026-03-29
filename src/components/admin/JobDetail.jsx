@@ -4,6 +4,7 @@ import { useAdmin } from './AdminContext.jsx';
 import api from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
 import { s, colors } from './styles.js';
+import { getVanLabel } from '../../lib/vanConfig.js';
 
 const JOB_STATUSES = ['pending_payment', 'pending_acceptance', 'accepted', 'in_progress', 'completed', 'cancelled', 'refunded'];
 
@@ -204,7 +205,7 @@ export default function JobDetail() {
           <Row label="Deposit (30%)" value={`£${num(j.deposit_gbp)}`} />
           <Row label="Balance (70%)" value={`£${num(j.balance_gbp)}`} />
           <Row label="Final total" value={j.final_total_gbp ? `£${num(j.final_total_gbp)}` : '-'} />
-          <Row label="Van loads" value={j.van_loads} />
+          <Row label="Vehicle" value={`${j.van_loads > 1 ? j.van_loads + 'x ' : ''}${getVanLabel(j.van_size || 'luton')}`} />
           <Row label="Crew" value={j.crew_required} />
           <Row label="Volume" value={j.effective_volume_cuft ? `${num(j.effective_volume_cuft)} cu ft` : '-'} />
         </div>

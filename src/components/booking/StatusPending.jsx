@@ -1,6 +1,8 @@
 // StatusPending — shown for pending_payment and pending_acceptance
 // Animated pulse, "Finding your crew", move date, deposit info
 
+import { getVanLabel } from '../../lib/vanConfig.js';
+
 export default function StatusPending({ booking }) {
   const isPaid = booking.status === 'pending_acceptance';
 
@@ -43,8 +45,8 @@ export default function StatusPending({ booking }) {
           <span style={styles.detailVal}>{booking.crew_required}-person</span>
         </div>
         <div style={styles.detailRow}>
-          <span style={styles.detailKey}>Van loads</span>
-          <span style={styles.detailVal}>{booking.van_loads}</span>
+          <span style={styles.detailKey}>Vehicle</span>
+          <span style={styles.detailVal}>{booking.van_loads > 1 ? `${booking.van_loads}x ` : ''}{getVanLabel(booking.van_size || 'luton', 'customer')}</span>
         </div>
       </div>
 

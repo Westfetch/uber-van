@@ -4,6 +4,7 @@ import { useAdmin } from './AdminContext.jsx';
 import api, { APP_ORIGIN } from '../../lib/api.js';
 import StatusBadge from './StatusBadge.jsx';
 import { s, colors, statusColors } from './styles.js';
+import { VAN_CONFIG, VAN_DB_VALUES, getVanLabel } from '../../lib/vanConfig.js';
 
 export default function DriverDetail() {
   const { driverId } = useParams();
@@ -199,7 +200,7 @@ export default function DriverDetail() {
             {d.name}
           </h2>
           <p style={{ margin: '4px 0 0', color: colors.muted, fontSize: '0.85rem' }}>
-            {d.van_size} &middot; {d.depot_postcode} &middot; {d.phone || 'No phone'} &middot; {d.email || 'No email'}
+            {getVanLabel(d.van_size)} &middot; {d.depot_postcode} &middot; {d.phone || 'No phone'} &middot; {d.email || 'No email'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -290,10 +291,7 @@ export default function DriverDetail() {
               onChange={e => setInfo(p => ({ ...p, van_size: e.target.value }))}
               style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
             >
-              <option value="transit">Transit</option>
-              <option value="luton">Luton</option>
-              <option value="large_luton">Large Luton</option>
-              <option value="7.5t">7.5t</option>
+              {VAN_DB_VALUES.map(v => <option key={v} value={v}>{VAN_CONFIG[v].adminLabel}</option>)}
             </select>
           </div>
         </div>
