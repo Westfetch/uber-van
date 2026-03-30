@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import api from '../../lib/api.js';
+import { setToken } from '../../lib/tokenStore.js';
 import { colors } from './styles.js';
+import AdminIcon from '../icons/AdminIcon.jsx';
 
 export default function AdminLogin({ onLogin }) {
   const [email, setEmail]       = useState('');
@@ -48,7 +50,7 @@ export default function AdminLogin({ onLogin }) {
       const data = await verRes.json();
       if (!verRes.ok) throw new Error(data.error || 'Biometric auth failed');
 
-      localStorage.setItem('admin_token', data.token);
+      await setToken('admin_token', data.token);
       onLogin(data.admin);
     } catch (err) {
       // User cancelled or biometric failed — show password form
@@ -72,7 +74,7 @@ export default function AdminLogin({ onLogin }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      localStorage.setItem('admin_token', data.token);
+      await setToken('admin_token', data.token);
       onLogin(data.admin);
     } catch (err) {
       setError(err.message);
@@ -85,7 +87,7 @@ export default function AdminLogin({ onLogin }) {
     <div style={styles.page}>
       <div style={styles.card}>
         <div style={styles.logo}>
-          <span style={{ fontSize: '2.5rem' }}>⚙️</span>
+          <AdminIcon size={48} />
           <h1 style={styles.logoText}>Admin Portal</h1>
         </div>
 

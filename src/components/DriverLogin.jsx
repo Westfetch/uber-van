@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import api from '../lib/api.js';
+import { setToken } from '../lib/tokenStore.js';
+import VanIcon from './icons/VanIcon.jsx';
 
 export default function DriverLogin({ onLogin }) {
   const [name, setName]           = useState('');
@@ -50,7 +52,7 @@ export default function DriverLogin({ onLogin }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Biometric login failed');
 
-      localStorage.setItem('driver_token', data.token);
+      await setToken('driver_token', data.token);
       onLogin(data.driver, { needsBioSetup: false });
     } catch (err) {
       if (err.name === 'NotAllowedError') {
@@ -91,7 +93,7 @@ export default function DriverLogin({ onLogin }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      localStorage.setItem('driver_token', data.token);
+      await setToken('driver_token', data.token);
       localStorage.setItem('driver_name', name.trim());
       onLogin(data.driver, { needsBioSetup: true });
     } catch (err) {
@@ -130,7 +132,7 @@ export default function DriverLogin({ onLogin }) {
       <div style={styles.page}>
         <div style={styles.card}>
           <div style={styles.logo}>
-            <span style={styles.logoIcon}>🚐</span>
+            <VanIcon size={48} />
             <h1 style={styles.logoText}>Driver Portal</h1>
           </div>
           <p style={{ color: '#888', textAlign: 'center', fontSize: '0.9rem' }}>Checking device authentication...</p>
@@ -145,7 +147,7 @@ export default function DriverLogin({ onLogin }) {
       <div style={styles.page}>
         <div style={styles.card}>
           <div style={styles.logo}>
-            <span style={styles.logoIcon}>🚐</span>
+            <VanIcon size={48} />
             <h1 style={styles.logoText}>Driver Portal</h1>
           </div>
 
@@ -178,7 +180,7 @@ export default function DriverLogin({ onLogin }) {
     <div style={styles.page}>
       <div style={styles.card}>
         <div style={styles.logo}>
-          <span style={styles.logoIcon}>🚐</span>
+          <VanIcon size={48} />
           <h1 style={styles.logoText}>Driver Portal</h1>
         </div>
 

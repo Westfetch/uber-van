@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import VanIcon from './icons/VanIcon.jsx';
 
 const bg = '#0a0a0a';
 const card = '#1a1a1a';
@@ -23,7 +24,7 @@ export default function DriverLanding() {
       <div style={{ maxWidth: '480px', width: '100%' }}>
         {/* Logo / brand */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <span style={{ fontSize: '3rem' }}>🚐</span>
+          <VanIcon size={56} />
           <h1 style={{ color: '#fff', margin: '12px 0 4px', fontSize: '1.6rem', fontWeight: 700 }}>
             Drive with us
           </h1>

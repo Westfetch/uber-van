@@ -9,7 +9,9 @@ import AdminShell from './components/admin/AdminShell.jsx';
 import BookingPortal from './components/booking/BookingPortal.jsx';
 import DriverLanding from './components/DriverLanding.jsx';
 import api from './lib/api.js';
+import { getToken, removeToken } from './lib/tokenStore.js';
 import { setupPush } from './lib/push.js';
+import VanIcon from './components/icons/VanIcon.jsx';
 
 const IS_ADMIN_APP = import.meta.env.VITE_APP_MODE === 'admin';
 
@@ -18,27 +20,27 @@ export default function App() {
   const [checking, setChecking]         = useState(true);
   const [needsBioSetup, setNeedsBioSetup] = useState(false);
 
-  // On mount: verify stored token
+  // On mount: verify stored token (secure storage on APK, localStorage on web)
   useEffect(() => {
-    const token = localStorage.getItem('driver_token');
-    if (!token) { setChecking(false); return; }
+    getToken('driver_token').then(token => {
+      if (!token) { setChecking(false); return; }
 
-    api('/api/driver-auth', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.driver) {
-          setDriver(data.driver);
-          setupPush();
-          // If no biometric registered yet, force setup
-          if (!data.hasWebauthn) setNeedsBioSetup(true);
-        } else {
-          localStorage.removeItem('driver_token');
-        }
+      api('/api/driver-auth', {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => localStorage.removeItem('driver_token'))
-      .finally(() => setChecking(false));
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.driver) {
+            setDriver(data.driver);
+            setupPush();
+            if (!data.hasWebauthn) setNeedsBioSetup(true);
+          } else {
+            removeToken('driver_token');
+          }
+        })
+        .catch(() => removeToken('driver_token'))
+        .finally(() => setChecking(false));
+    });
   }, []);
 
   function handleLogin(d, opts) {
@@ -58,7 +60,7 @@ export default function App() {
 
   if (checking) return (
     <div style={{ background: '#0a0a0a', minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ fontSize: '2rem' }}>🚐</span>
+      <VanIcon size={40} />
     </div>
   );
 

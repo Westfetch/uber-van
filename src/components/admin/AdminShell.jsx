@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { startRegistration } from '@simplewebauthn/browser';
 import api from '../../lib/api.js';
+import { getToken, removeToken, getTokenSync } from '../../lib/tokenStore.js';
+import AdminIcon from '../icons/AdminIcon.jsx';
 import { AdminProvider } from './AdminContext.jsx';
 import AdminLogin from './AdminLogin.jsx';
 import JobPipeline from './JobPipeline.jsx';
@@ -33,33 +35,34 @@ export default function AdminShell() {
   const location                  = useLocation();
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) { setChecking(false); return; }
+    getToken('admin_token').then(token => {
+      if (!token) { setChecking(false); return; }
 
-    api('/api/admin-auth', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.admin) {
-          setAdmin(data.admin);
-          setHasWebAuthn(!!data.hasWebAuthn);
-        } else {
-          localStorage.removeItem('admin_token');
-        }
+      api('/api/admin-auth', {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => localStorage.removeItem('admin_token'))
-      .finally(() => setChecking(false));
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.admin) {
+            setAdmin(data.admin);
+            setHasWebAuthn(!!data.hasWebAuthn);
+          } else {
+            removeToken('admin_token');
+          }
+        })
+        .catch(() => removeToken('admin_token'))
+        .finally(() => setChecking(false));
+    });
   }, []);
 
   function logout() {
-    localStorage.removeItem('admin_token');
+    removeToken('admin_token');
     setAdmin(null);
   }
 
   if (checking) return (
     <div style={{ background: colors.bg, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ fontSize: '2rem' }}>⚙️</span>
+      <AdminIcon size={40} />
     </div>
   );
 
@@ -71,12 +74,12 @@ export default function AdminShell() {
   if (location.pathname === '/admin/login') return <Navigate to="/admin/jobs" replace />;
 
   return (
-    <AdminProvider value={{ admin, token: localStorage.getItem('admin_token'), logout }}>
+    <AdminProvider value={{ admin, token: getTokenSync('admin_token'), logout }}>
       <div style={s.page}>
         {/* Sidebar */}
         <nav style={s.sidebar}>
           <div style={s.sidebarLogo}>
-            <span style={{ fontSize: '1.5rem' }}>⚙️</span>
+            <AdminIcon size={28} />
             <p style={s.sidebarLogoText}>Admin</p>
           </div>
           {NAV.map(n => {
@@ -102,7 +105,7 @@ export default function AdminShell() {
                 onClick={async () => {
                   setBioStatus('registering');
                   try {
-                    const token = localStorage.getItem('admin_token');
+                    const token = getTokenSync('admin_token');
                     // Get registration options
                     const optRes = await api('/api/admin-auth?action=webauthn-register&phase=options', {
                       method: 'POST',
