@@ -21,7 +21,13 @@ export default function App() {
   const [needsBioSetup, setNeedsBioSetup] = useState(false);
 
   // On mount: verify stored token (secure storage on APK, localStorage on web)
+  // Skip driver auth check if we're on /admin — AdminShell handles its own auth
   useEffect(() => {
+    if (window.location.pathname.startsWith('/admin')) {
+      setChecking(false);
+      return;
+    }
+
     getToken('driver_token').then(token => {
       if (!token) { setChecking(false); return; }
 
