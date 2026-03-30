@@ -60,7 +60,7 @@ export default function SignOff({ job, onComplete }) {
     setError('');
     try {
       const token = localStorage.getItem('driver_token');
-      const res = await api('/api/complete-job', {
+      const res = await api('/api/job-action?action=complete', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ job_id: job.id }),

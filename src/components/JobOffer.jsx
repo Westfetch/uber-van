@@ -74,7 +74,7 @@ export default function JobOffer() {
     if (acting || expired) return;
     setActing(true);
     const token = localStorage.getItem('driver_token');
-    const res   = await api('/api/accept-job', {
+    const res   = await api('/api/job-action?action=accept', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body:    JSON.stringify({ offer_id: offerId }),
@@ -88,7 +88,7 @@ export default function JobOffer() {
     if (acting) return;
     setActing(true);
     const token = localStorage.getItem('driver_token');
-    await api('/api/decline-job', {
+    await api('/api/job-action?action=decline', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body:    JSON.stringify({ offer_id: offerId }),
