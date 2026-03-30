@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import api from '../lib/api.js';
-import { getTokenSync, removeToken } from '../lib/tokenStore.js';
+import { getToken, removeToken } from '../lib/tokenStore.js';
 
 export default function BiometricSetup({ onComplete, onFail }) {
   const [status, setStatus] = useState('idle'); // idle | registering | error
   const [error, setError]   = useState('');
 
+  // Auto-trigger on mount so the user doesn't have to tap
+  useEffect(() => { handleRegister(); }, []);
+
   async function handleRegister() {
     setStatus('registering');
     setError('');
-    const token = getTokenSync('driver_token');
+    const token = await getToken('driver_token');
 
     try {
       // Phase 1: get registration options
