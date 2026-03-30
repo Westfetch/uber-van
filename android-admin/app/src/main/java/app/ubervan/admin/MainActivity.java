@@ -22,9 +22,11 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
 
         // Register JS interface for web <-> native biometric communication
-        getBridge().getWebView().addJavascriptInterface(
-            new BiometricBridge(this), "NativeBiometric"
-        );
+        getBridge().getWebView().post(() -> {
+            getBridge().getWebView().addJavascriptInterface(
+                new BiometricBridge(this), "NativeBiometric"
+            );
+        });
 
         // Show biometric gate if enabled
         if (BiometricBridge.shouldShowBiometric(this)) {
@@ -33,7 +35,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void showBiometricOverlay() {
-        FrameLayout root = findViewById(R.id.root_container);
+        FrameLayout root = findViewById(android.R.id.content);
         overlayView = LayoutInflater.from(this)
                 .inflate(R.layout.biometric_overlay, root, false);
         root.addView(overlayView);
