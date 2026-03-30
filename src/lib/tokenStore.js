@@ -34,21 +34,20 @@ export async function getToken(key) {
 }
 
 export async function setToken(key, value) {
+  // Always write to localStorage so getTokenSync works everywhere
+  localStorage.setItem(key, value);
   await loadPrefs();
   if (Preferences) {
     await Preferences.set({ key, value });
-    return;
   }
-  localStorage.setItem(key, value);
 }
 
 export async function removeToken(key) {
+  localStorage.removeItem(key);
   await loadPrefs();
   if (Preferences) {
     await Preferences.remove({ key });
-    return;
   }
-  localStorage.removeItem(key);
 }
 
 // Synchronous getter for cases where async isn't practical (e.g. inline headers).
