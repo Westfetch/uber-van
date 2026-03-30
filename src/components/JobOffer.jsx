@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
+import { getTokenSync } from '../lib/tokenStore.js';
 import { getVanLabel } from '../lib/vanConfig.js';
 
 const OFFER_EXPIRED_MSG = 'This offer has expired or is no longer available.';
@@ -40,7 +41,7 @@ export default function JobOffer() {
 
   useEffect(() => {
     async function load() {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       if (!token) { navigate('/login'); return; }
 
       const res = await api(`/api/driver-data?type=offer&id=${offerId}`, {
@@ -73,7 +74,7 @@ export default function JobOffer() {
   const handleAccept = useCallback(async () => {
     if (acting || expired) return;
     setActing(true);
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
     const res   = await api('/api/job-action?action=accept', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -87,7 +88,7 @@ export default function JobOffer() {
   const handleDecline = useCallback(async () => {
     if (acting) return;
     setActing(true);
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
     await api('/api/job-action?action=decline', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

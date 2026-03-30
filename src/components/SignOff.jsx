@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../lib/api.js';
+import { getTokenSync } from '../lib/tokenStore.js';
 
 export default function SignOff({ job, onComplete }) {
   const [signLinkSent, setSignLinkSent]   = useState(false);
@@ -19,7 +20,7 @@ export default function SignOff({ job, onComplete }) {
     if (!signLinkSent || customerSigned) return;
     pollRef.current = setInterval(async () => {
       try {
-        const token = localStorage.getItem('driver_token');
+        const token = getTokenSync('driver_token');
         const res = await api(`/api/admin?action=job&id=${job.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -37,7 +38,7 @@ export default function SignOff({ job, onComplete }) {
 
   async function sendSignLink() {
     try {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -59,7 +60,7 @@ export default function SignOff({ job, onComplete }) {
     setCompleting(true);
     setError('');
     try {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/job-action?action=complete', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

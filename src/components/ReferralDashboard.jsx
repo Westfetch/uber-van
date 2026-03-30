@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '../lib/api.js';
+import { getTokenSync } from '../lib/tokenStore.js';
 
 export default function ReferralDashboard({ driver }) {
   const [data, setData]       = useState(null);
@@ -10,7 +11,7 @@ export default function ReferralDashboard({ driver }) {
 
   useEffect(() => {
     async function load() {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/driver-data?type=referral-stats', {
         headers: { Authorization: `Bearer ${token}` },
       });

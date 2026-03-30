@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
+import { getTokenSync } from '../lib/tokenStore.js';
 import Itinerary from './Itinerary.jsx';
 import InventoryEditor from './InventoryEditor.jsx';
 import SignOff from './SignOff.jsx';
@@ -19,7 +20,7 @@ export default function JobView() {
   const [error, setError]     = useState('');
 
   async function loadJob() {
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
     if (!token) { navigate('/login'); return; }
 
     const res = await api(`/api/driver-data?type=job&id=${jobId}`, {

@@ -3,6 +3,7 @@
 // Actions: jobs, job, drivers, driver, driver-create, driver-setup-code, payouts, messages, message-read
 
 import crypto from 'crypto';
+import Stripe from 'stripe';
 import { verifyAdmin, getSupabaseAdmin } from './_lib/auth.js';
 import cors from './_lib/cors.js';
 import { sendEmail } from './_lib/email.js';
@@ -32,6 +33,19 @@ export default async function handler(req, res) {
 
   const sb = getSupabaseAdmin();
 
+  // Audit log for all mutating actions (fire-and-forget)
+  const READ_ACTIONS = ['jobs', 'job', 'drivers', 'driver', 'payouts', 'messages', 'message-replies', 'config', 'invoices', 'invoice-detail', 'export'];
+  if (action && !READ_ACTIONS.includes(action)) {
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+    sb.from('admin_audit_log').insert({
+      admin_id: admin.id,
+      action,
+      method: req.method,
+      payload: req.method === 'POST' ? req.body : req.query,
+      ip,
+    }).then(null, err => console.error('[audit] Log failed:', err.message));
+  }
+
   switch (action) {
     case 'jobs':    return handleJobs(req, res, sb);
     case 'job':     return handleJob(req, res, sb);
@@ -58,6 +72,7 @@ export default async function handler(req, res) {
     case 'invoice-pay':        return handleInvoicePay(req, res, sb, admin);
     case 'invoice-fail':       return handleInvoiceFail(req, res, sb);
     case 'generate-invoices':  return handleGenerateInvoices(req, res, sb);
+    case 'refund':             return handleRefund(req, res, sb, admin);
     default:               return res.status(400).json({ error: `Unknown action: ${action}` });
   }
 }
@@ -771,6 +786,61 @@ async function handleGenerateInvoices(req, res, sb) {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+}
+
+// ── Refund ────────────────────────────────────────────────────────────────────
+async function handleRefund(req, res, sb, admin) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { job_id, amount_gbp, reason } = req.body || {};
+  if (!job_id) return res.status(400).json({ error: 'job_id required' });
+
+  const { data: job } = await sb
+    .from('jobs')
+    .select('id, status, stripe_payment_intent_id, customer_quote_gbp, deposit_gbp')
+    .eq('id', job_id)
+    .maybeSingle();
+
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  if (!job.stripe_payment_intent_id)
+    return res.status(400).json({ error: 'No Stripe payment intent on this job' });
+
+  // Default to full deposit refund if no amount specified
+  const refundAmount = amount_gbp ? Math.round(Number(amount_gbp) * 100) : Math.round(Number(job.deposit_gbp) * 100);
+  if (refundAmount <= 0 || refundAmount > Math.round(Number(job.customer_quote_gbp) * 100))
+    return res.status(400).json({ error: 'Invalid refund amount' });
+
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    const refund = await stripe.refunds.create({
+      payment_intent: job.stripe_payment_intent_id,
+      amount: refundAmount,
+      reason: 'requested_by_customer',
+    });
+
+    // Log event
+    await sb.from('job_events').insert({
+      job_id,
+      event_type: 'refund_issued',
+      payload: {
+        refund_id: refund.id,
+        amount_gbp: refundAmount / 100,
+        reason: reason || 'Admin-initiated refund',
+        admin_id: admin.id,
+      },
+      created_by: 'admin',
+    });
+
+    // Update job status if full refund
+    if (refundAmount >= Math.round(Number(job.customer_quote_gbp) * 100)) {
+      await sb.from('jobs').update({ status: 'refunded' }).eq('id', job_id);
+    }
+
+    return res.json({ ok: true, refund_id: refund.id, amount_gbp: refundAmount / 100 });
+  } catch (err) {
+    console.error('[admin] Refund failed:', err.message);
+    return res.status(500).json({ error: 'Stripe refund failed: ' + err.message });
   }
 }
 

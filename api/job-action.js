@@ -8,6 +8,7 @@ import { sendEmail, signBookingLink } from './_lib/email.js';
 import { sendSMS } from './_lib/sms.js';
 import { getVanLabel } from './_lib/vanConfig.js';
 import { advanceDispatch } from './_lib/dispatch.js';
+import { checkIdempotency, recordIdempotencyKey } from './_lib/idempotency.js';
 import cors from './_lib/cors.js';
 
 export default async function handler(req, res) {
@@ -169,6 +170,13 @@ async function handleComplete(req, res, admin, caller) {
   const { job_id } = req.body || {};
   if (!job_id) return res.status(400).json({ error: 'job_id required' });
 
+  // Idempotency: prevent duplicate completion (e.g. client retry)
+  const idemKey = req.headers['idempotency-key'];
+  if (idemKey) {
+    const { duplicate, result } = await checkIdempotency(admin, job_id, idemKey);
+    if (duplicate) return res.json(result || { ok: true, deduplicated: true });
+  }
+
   const { data: job } = await admin
     .from('jobs')
     .select('id, status, driver_id, customer_quote_gbp, deposit_gbp, balance_gbp, final_total_gbp, stripe_payment_intent_id, customer_email, customer_name, customer_phone, pickup_postcode, destination_postcode, move_date')
@@ -318,7 +326,9 @@ async function handleComplete(req, res, admin, caller) {
     }).catch(err => console.error('[job-action/complete] Receipt email failed:', err));
   }
 
-  res.json({ ok: true, final_total_gbp: finalTotal });
+  const result = { ok: true, final_total_gbp: finalTotal };
+  recordIdempotencyKey(admin, job_id, idemKey, result);
+  res.json(result);
 }
 
 // ── Decline offer ─────────────────────────────────────────────────────────────

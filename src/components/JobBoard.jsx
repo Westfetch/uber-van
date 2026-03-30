@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api.js';
+import { getTokenSync } from '../lib/tokenStore.js';
 
 export default function JobBoard({ driver }) {
   const [jobs, setJobs]       = useState([]);
@@ -11,7 +12,7 @@ export default function JobBoard({ driver }) {
   const [error, setError]     = useState('');
 
   const load = useCallback(async () => {
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
     const res = await api('/api/driver-data?type=job-board', {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -33,7 +34,7 @@ export default function JobBoard({ driver }) {
     setError('');
 
     try {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       // Create an offer and accept in one go via the board
       // The job-board accept creates the offer + accepts atomically
       const res = await api('/api/job-action?action=board-accept', {

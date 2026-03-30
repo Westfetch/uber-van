@@ -8,6 +8,7 @@
 
 import bcrypt from 'bcryptjs';
 import cors from './_lib/cors.js';
+import { checkRateLimit, recordFailedAttempt } from './_lib/rateLimit.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -212,6 +213,8 @@ export default async function handler(req, res) {
     }
 
     // Default POST: password login
+    if (await checkRateLimit(req, res, sb, { scope: 'admin-login', window: 15, max: 5 })) return;
+
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
@@ -221,10 +224,16 @@ export default async function handler(req, res) {
       .eq('email', email.toLowerCase().trim())
       .single();
 
-    if (error || !admin) return res.status(401).json({ error: 'Invalid credentials' });
+    if (error || !admin) {
+      recordFailedAttempt(sb, req, 'admin-login');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     const valid = await bcrypt.compare(password, admin.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!valid) {
+      recordFailedAttempt(sb, req, 'admin-login');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     const token = signAdminToken(admin.id);
     return res.json({ token, admin: { id: admin.id, email: admin.email, name: admin.name } });

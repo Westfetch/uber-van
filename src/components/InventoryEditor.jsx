@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { searchItems } from '../lib/itemLookup.js';
 import api from '../lib/api.js';
+import { getTokenSync } from '../lib/tokenStore.js';
 
 function ItemRow({ item, onRemove, readOnly }) {
   return (
@@ -97,7 +98,7 @@ export default function InventoryEditor({ job, onUpdate }) {
   const newTotal     = originalQuote + addedItemsTotal + extraMileage;
 
   async function post(body) {
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
     const res = await api('/api/update-inventory', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

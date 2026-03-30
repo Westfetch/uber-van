@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import api from '../lib/api.js';
+import { getTokenSync, removeToken } from '../lib/tokenStore.js';
 
 export default function BiometricSetup({ onComplete, onFail }) {
   const [status, setStatus] = useState('idle'); // idle | registering | error
@@ -9,7 +10,7 @@ export default function BiometricSetup({ onComplete, onFail }) {
   async function handleRegister() {
     setStatus('registering');
     setError('');
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
 
     try {
       // Phase 1: get registration options
@@ -45,7 +46,7 @@ export default function BiometricSetup({ onComplete, onFail }) {
   }
 
   function handleBack() {
-    localStorage.removeItem('driver_token');
+    removeToken('driver_token');
     localStorage.removeItem('driver_name');
     onFail();
   }

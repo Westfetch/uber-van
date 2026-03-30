@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
+import { getTokenSync } from '../lib/tokenStore.js';
 import OnlineToggle from './OnlineToggle.jsx';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -190,7 +191,7 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
 
   useEffect(() => {
     async function load() {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/driver-data?type=dashboard', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -210,7 +211,7 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
     const prev = online;
     setOnline(!prev);
     try {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/driver-data?type=toggle-online', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

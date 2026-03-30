@@ -9,6 +9,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin, signDriverToken, verifyDriver } from './_lib/auth.js';
 import cors from './_lib/cors.js';
+import { checkRateLimit, recordFailedAttempt } from './_lib/rateLimit.js';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -242,6 +243,8 @@ export default async function handler(req, res) {
     }
 
     // Default POST: login with setup code
+    if (await checkRateLimit(req, res, sb, { scope: 'driver-login', window: 15, max: 5 })) return;
+
     const { name, setupCode } = req.body || {};
     if (!name || !setupCode)
       return res.status(400).json({ error: 'name and setupCode required' });
@@ -258,10 +261,12 @@ export default async function handler(req, res) {
     const dummy = Buffer.from('0'.repeat(64), 'hex');
     if (error || !driver || !driver.setup_code_hash) {
       crypto.timingSafeEqual(Buffer.from(incomingHash, 'hex'), dummy);
+      recordFailedAttempt(sb, req, 'driver-login');
       return res.status(401).json({ error: 'Invalid name or setup code' });
     }
 
     if (new Date(driver.setup_code_expires_at) < new Date()) {
+      recordFailedAttempt(sb, req, 'driver-login');
       return res.status(401).json({ error: 'Setup code expired — ask the platform for a new one' });
     }
 
@@ -269,7 +274,10 @@ export default async function handler(req, res) {
     const given  = Buffer.from(incomingHash, 'hex');
     const match  = stored.length === given.length && crypto.timingSafeEqual(stored, given);
 
-    if (!match) return res.status(401).json({ error: 'Invalid name or setup code' });
+    if (!match) {
+      recordFailedAttempt(sb, req, 'driver-login');
+      return res.status(401).json({ error: 'Invalid name or setup code' });
+    }
 
     // Block unapproved / suspended drivers
     if (driver.approval_status === 'suspended')

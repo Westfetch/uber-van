@@ -4,6 +4,7 @@
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import api from './api.js';
+import { getTokenSync } from './tokenStore.js';
 
 let registered = false;
 
@@ -17,7 +18,7 @@ export async function setupPush() {
   await PushNotifications.register();
 
   PushNotifications.addListener('registration', async ({ value: fcmToken }) => {
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
     if (!token) return;
     await api('/api/driver-data?type=register-push', {
       method: 'POST',

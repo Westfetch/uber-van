@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '../lib/api.js';
+import { removeToken, getTokenSync } from '../lib/tokenStore.js';
 import OnlineToggle from './OnlineToggle.jsx';
 
 function formatWeek(start, end) {
@@ -54,7 +55,7 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
 
   useEffect(() => {
     async function load() {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const headers = { Authorization: `Bearer ${token}` };
 
       const [settingsRes, invoicesRes] = await Promise.all([
@@ -102,7 +103,7 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
     const prev = online;
     setOnline(!prev);
     try {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/driver-data?type=toggle-online', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -128,7 +129,7 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
     setBankSaved(false);
 
     try {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/driver-data?type=bank-details', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -161,7 +162,7 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
     }
     setExpanded(inv.id);
     setLines([]);
-    const token = localStorage.getItem('driver_token');
+    const token = getTokenSync('driver_token');
     const res = await api(`/api/driver-data?type=invoice-detail&id=${inv.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -178,7 +179,7 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
     setOwnerSaved(false);
 
     try {
-      const token = localStorage.getItem('driver_token');
+      const token = getTokenSync('driver_token');
       const res = await api('/api/driver-data?type=owner-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -389,7 +390,7 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
           {settings?.phone && <p style={s.accountRow}><span style={s.accountLabel}>Phone</span> {settings.phone}</p>}
           <button
             style={{ ...s.btn, background: 'transparent', border: '1px solid #333', color: '#888', marginTop: '12px' }}
-            onClick={() => { localStorage.removeItem('driver_token'); localStorage.removeItem('driver_name'); onLogout(); }}
+            onClick={() => { removeToken('driver_token'); localStorage.removeItem('driver_name'); onLogout(); }}
           >
             Sign out
           </button>
