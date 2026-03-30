@@ -9,7 +9,7 @@ export default function DriverForm() {
   const { token }  = useAdmin();
   const navigate    = useNavigate();
 
-  const [form, setForm]     = useState({ name: '', phone: '', email: '', van_size: 'luton', depot_postcode: '' });
+  const [form, setForm]     = useState({ name: '', phone: '', email: '', van_size: 'luton', depot_postcode: '', driver_type: 'pool', priority_window_mins: 30 });
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +69,31 @@ export default function DriverForm() {
             <label style={s.label}>Depot postcode *</label>
             <input style={{ ...s.input, marginTop: '4px' }} value={form.depot_postcode} onChange={e => set('depot_postcode', e.target.value)} required />
           </div>
+          <div>
+            <label style={s.label}>Driver type</label>
+            <select
+              style={{ ...s.input, marginTop: '4px', cursor: 'pointer' }}
+              value={form.driver_type}
+              onChange={e => set('driver_type', e.target.value)}
+            >
+              <option value="pool">Pool</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+          {form.driver_type === 'owner' && (
+            <div>
+              <label style={s.label}>Priority window (mins)</label>
+              <input
+                type="number"
+                min={5}
+                max={240}
+                style={{ ...s.input, marginTop: '4px' }}
+                value={form.priority_window_mins}
+                onChange={e => set('priority_window_mins', parseInt(e.target.value) || 30)}
+              />
+              <p style={{ color: colors.muted, fontSize: '0.7rem', margin: '4px 0 0' }}>5–240 mins. How long the owner gets before cascade to pool.</p>
+            </div>
+          )}
 
           {error && <p style={{ color: colors.error, fontSize: '0.85rem', margin: 0 }}>{error}</p>}
 

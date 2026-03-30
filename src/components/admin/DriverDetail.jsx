@@ -17,7 +17,7 @@ export default function DriverDetail() {
   const [generating, setGenerating] = useState(false);
 
   // Driver info form state
-  const [info, setInfo] = useState({ name: '', phone: '', email: '', van_size: 'luton', depot_postcode: '' });
+  const [info, setInfo] = useState({ name: '', phone: '', email: '', van_size: 'luton', depot_postcode: '', driver_type: 'pool', priority_window_mins: 30 });
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoMsg, setInfoMsg] = useState('');
 
@@ -49,6 +49,8 @@ export default function DriverDetail() {
             email: d.driver.email || '',
             van_size: d.driver.van_size || 'luton',
             depot_postcode: d.driver.depot_postcode || '',
+            driver_type: d.driver.driver_type || 'pool',
+            priority_window_mins: d.driver.priority_window_mins ?? 30,
           });
           setOnboarding({
             approval_status: d.driver.approval_status || 'pending',
@@ -60,7 +62,7 @@ export default function DriverDetail() {
           });
         }
       })
-      .catch(() => {})
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [driverId, token]);
 
@@ -246,7 +248,7 @@ export default function DriverDetail() {
       {/* Driver Info */}
       <div style={s.card}>
         <p style={s.sectionTitle}>Driver Info</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(200px, 100%), 1fr))', gap: '12px', marginBottom: '16px' }}>
           <div>
             <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Name</label>
             <input
@@ -335,13 +337,13 @@ export default function DriverDetail() {
         </div>
 
         {/* Document checks */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(200px, 100%), 1fr))', gap: '12px', marginBottom: '16px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: colors.white, fontSize: '0.9rem', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={onboarding.insurance_verified}
               onChange={e => setField('insurance_verified', e.target.checked)}
-              style={{ accentColor: colors.accent, width: '16px', height: '16px' }}
+              style={{ accentColor: colors.accent, width: '20px', height: '20px' }}
             />
             Insurance verified
           </label>
@@ -359,7 +361,7 @@ export default function DriverDetail() {
               type="checkbox"
               checked={onboarding.license_verified}
               onChange={e => setField('license_verified', e.target.checked)}
-              style={{ accentColor: colors.accent, width: '16px', height: '16px' }}
+              style={{ accentColor: colors.accent, width: '20px', height: '20px' }}
             />
             Driving licence verified
           </label>
@@ -368,7 +370,7 @@ export default function DriverDetail() {
               type="checkbox"
               checked={onboarding.dbs_verified}
               onChange={e => setField('dbs_verified', e.target.checked)}
-              style={{ accentColor: colors.accent, width: '16px', height: '16px' }}
+              style={{ accentColor: colors.accent, width: '20px', height: '20px' }}
             />
             DBS check verified
           </label>
@@ -408,8 +410,74 @@ export default function DriverDetail() {
         </div>
       </div>
 
+      {/* Owner-Driver Settings */}
+      <div style={s.card}>
+        <p style={s.sectionTitle}>Owner-Driver Settings</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(200px, 100%), 1fr))', gap: '12px', marginBottom: '16px' }}>
+          <div>
+            <label style={{ ...s.label, display: 'block', marginBottom: '6px' }}>Driver type</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {['pool', 'owner'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => setInfo(p => ({ ...p, driver_type: t }))}
+                  style={{
+                    ...s.filterTab,
+                    ...(info.driver_type === t ? {
+                      background: t === 'owner' ? colors.accent + '22' : '#4ade8022',
+                      borderColor: t === 'owner' ? colors.accent : '#4ade80',
+                      color: t === 'owner' ? colors.accent : '#4ade80',
+                    } : {}),
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          {info.driver_type === 'owner' && (
+            <div>
+              <label style={{ ...s.label, display: 'block', marginBottom: '4px' }}>Priority window (mins)</label>
+              <input
+                type="number"
+                min={5}
+                max={240}
+                value={info.priority_window_mins}
+                onChange={e => setInfo(p => ({ ...p, priority_window_mins: parseInt(e.target.value) || 30 }))}
+                style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+              />
+              <p style={{ color: colors.muted, fontSize: '0.7rem', margin: '4px 0 0' }}>5–240 mins before cascade to pool</p>
+            </div>
+          )}
+        </div>
+        {info.driver_type === 'owner' && (
+          <>
+            <p style={{ ...s.label, margin: '12px 0 8px' }}>Driver-managed settings (read-only)</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: '12px' }}>
+              <div>
+                <span style={{ color: colors.muted, fontSize: '0.75rem' }}>Working radius</span>
+                <p style={{ color: colors.white, fontSize: '0.9rem', margin: '2px 0 0' }}>
+                  {d.working_radius_miles ? `${d.working_radius_miles} miles` : 'Unlimited'}
+                </p>
+              </div>
+              <div>
+                <span style={{ color: colors.muted, fontSize: '0.75rem' }}>Crew count</span>
+                <p style={{ color: colors.white, fontSize: '0.9rem', margin: '2px 0 0' }}>{d.crew_count ?? 0}</p>
+              </div>
+              <div>
+                <span style={{ color: colors.muted, fontSize: '0.75rem' }}>Blocked dates</span>
+                <p style={{ color: colors.white, fontSize: '0.9rem', margin: '2px 0 0' }}>
+                  {d.blocked_dates?.length ? d.blocked_dates.join(', ') : 'None'}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Stats */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+      <div style={s.statRow}>
         <div style={s.statCard}>
           <p style={s.statValue}>{data.stats?.job_count || 0}</p>
           <p style={s.statLabel}>Jobs completed</p>
@@ -434,7 +502,7 @@ export default function DriverDetail() {
       <div style={s.card}>
         <p style={s.sectionTitle}>Job History</p>
         {data.jobs?.length > 0 ? (
-          <table style={s.table}>
+          <div style={s.tableWrap}><table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Date</th>
@@ -449,8 +517,8 @@ export default function DriverDetail() {
                   key={job.id}
                   style={s.trClickable}
                   onClick={() => navigate(`/admin/jobs/${job.id}`)}
-                  onMouseEnter={e => e.currentTarget.style.background = '#1e1e1e'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onPointerEnter={s.trHoverOn}
+                  onPointerLeave={s.trHoverOff}
                 >
                   <td style={s.td}>{job.move_date || '-'}</td>
                   <td style={{ ...s.td, fontSize: '0.8rem', color: colors.muted }}>
@@ -461,7 +529,7 @@ export default function DriverDetail() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : (
           <p style={{ color: colors.muted, fontSize: '0.85rem' }}>No jobs yet</p>
         )}

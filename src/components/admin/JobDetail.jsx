@@ -24,6 +24,12 @@ export default function JobDetail() {
   const [showOverride, setShowOverride] = useState(false);
   const [actionMsg, setActionMsg] = useState('');
 
+  // Refund state
+  const [showRefund, setShowRefund] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refunding, setRefunding] = useState(false);
+
   useEffect(() => {
     loadJob();
   }, [jobId, token]);
@@ -86,11 +92,41 @@ export default function JobDetail() {
     setTimeout(() => setActionMsg(''), 3000);
   }
 
+  async function refundJob() {
+    setRefunding(true);
+    try {
+      const body = { job_id: jobId, reason: refundReason };
+      if (refundAmount) body.amount_gbp = parseFloat(refundAmount);
+      const res = await api('/api/admin?action=refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setShowRefund(false);
+        setRefundAmount('');
+        setRefundReason('');
+        setActionMsg(`Refunded £${data.amount_gbp.toFixed(2)}`);
+        loadJob();
+      } else {
+        const err = await res.json();
+        setActionMsg(err.error || 'Refund failed');
+      }
+    } catch {
+      setActionMsg('Refund failed');
+    } finally {
+      setRefunding(false);
+      setTimeout(() => setActionMsg(''), 4000);
+    }
+  }
+
   if (loading) return <p style={{ color: colors.muted, padding: '40px', textAlign: 'center' }}>Loading...</p>;
   if (!job) return <p style={{ color: colors.error, padding: '40px', textAlign: 'center' }}>Job not found</p>;
 
   const j = job.job;
   const cancellable = ['pending_payment', 'pending_acceptance', 'accepted'].includes(j.status);
+  const refundable = ['completed', 'cancelled'].includes(j.status);
 
   return (
     <div>
@@ -120,6 +156,14 @@ export default function JobDetail() {
           >
             Override status
           </button>
+          {refundable && (
+            <button
+              style={{ ...s.btnOutline, color: '#f59e0b', borderColor: '#f59e0b' }}
+              onClick={() => { setShowRefund(!showRefund); setRefundAmount(num(j.deposit_gbp)); }}
+            >
+              Refund
+            </button>
+          )}
         </div>
       </div>
 
@@ -189,8 +233,51 @@ export default function JobDetail() {
         </div>
       )}
 
+      {/* Refund form */}
+      {showRefund && (
+        <div style={{ ...s.card, border: '1px solid #f59e0b' }}>
+          <p style={{ ...s.label, margin: '0 0 8px' }}>Issue refund via Stripe</p>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '120px' }}>
+              <label style={{ color: colors.muted, fontSize: '0.75rem' }}>Amount (£)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={refundAmount}
+                onChange={e => setRefundAmount(e.target.value)}
+                placeholder={num(j.deposit_gbp)}
+                style={{ ...s.input, marginTop: '4px' }}
+              />
+            </div>
+            <div style={{ flex: 2, minWidth: '200px' }}>
+              <label style={{ color: colors.muted, fontSize: '0.75rem' }}>Reason (optional)</label>
+              <input
+                value={refundReason}
+                onChange={e => setRefundReason(e.target.value)}
+                placeholder="e.g. Customer requested refund"
+                style={{ ...s.input, marginTop: '4px' }}
+              />
+            </div>
+          </div>
+          <p style={{ color: colors.muted, fontSize: '0.75rem', margin: '0 0 8px' }}>
+            Deposit: £{num(j.deposit_gbp)} · Quote: £{num(j.customer_quote_gbp)}
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={{ ...s.btn, background: '#f59e0b', opacity: refunding ? 0.5 : 1 }}
+              onClick={refundJob}
+              disabled={refunding}
+            >
+              {refunding ? 'Processing...' : `Refund £${refundAmount || num(j.deposit_gbp)}`}
+            </button>
+            <button style={s.btnOutline} onClick={() => setShowRefund(false)}>Dismiss</button>
+          </div>
+        </div>
+      )}
+
       {/* Grid: Customer + Financials */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))', gap: '16px' }}>
         <div style={s.card}>
           <p style={s.sectionTitle}>Customer</p>
           <Row label="Name" value={j.customer_name} />
@@ -215,7 +302,7 @@ export default function JobDetail() {
       <div style={s.card}>
         <p style={s.sectionTitle}>Items ({job.items?.length || 0})</p>
         {job.items?.length > 0 ? (
-          <table style={s.table}>
+          <div style={s.tableWrap}><table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Item</th>
@@ -238,7 +325,7 @@ export default function JobDetail() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : (
           <p style={{ color: colors.muted, fontSize: '0.85rem' }}>No items</p>
         )}
@@ -248,7 +335,7 @@ export default function JobDetail() {
       <div style={s.card}>
         <p style={s.sectionTitle}>Offers ({job.offers?.length || 0})</p>
         {job.offers?.length > 0 ? (
-          <table style={s.table}>
+          <div style={s.tableWrap}><table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Driver</th>
@@ -271,7 +358,7 @@ export default function JobDetail() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : (
           <p style={{ color: colors.muted, fontSize: '0.85rem' }}>No offers sent yet</p>
         )}

@@ -11,6 +11,7 @@ export default function DriverList() {
   const navigate    = useNavigate();
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     api('/api/admin?action=drivers', {
@@ -18,7 +19,7 @@ export default function DriverList() {
     })
       .then(r => r.ok ? r.json() : { drivers: [] })
       .then(data => setDrivers(data.drivers))
-      .catch(() => {})
+      .catch(() => setError('Failed to load drivers'))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -33,12 +34,14 @@ export default function DriverList() {
       </div>
 
       <div style={s.card}>
-        {loading ? (
+        {error ? (
+          <p style={{ color: colors.error, textAlign: 'center', padding: '20px' }}>{error}</p>
+        ) : loading ? (
           <p style={{ color: colors.muted, textAlign: 'center', padding: '20px' }}>Loading...</p>
         ) : drivers.length === 0 ? (
           <p style={{ color: colors.muted, textAlign: 'center', padding: '20px' }}>No drivers</p>
         ) : (
-          <table style={s.table}>
+          <div style={s.tableWrap}><table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Name</th>
@@ -58,10 +61,25 @@ export default function DriverList() {
                   key={d.id}
                   style={s.trClickable}
                   onClick={() => navigate(`/admin/drivers/${d.id}`)}
-                  onMouseEnter={e => e.currentTarget.style.background = '#1e1e1e'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onPointerEnter={s.trHoverOn}
+                  onPointerLeave={s.trHoverOff}
                 >
-                  <td style={s.td}>{d.name}</td>
+                  <td style={s.td}>
+                    {d.name}
+                    {d.driver_type === 'owner' && (
+                      <span style={{
+                        display: 'inline-block',
+                        marginLeft: '6px',
+                        padding: '1px 8px',
+                        borderRadius: '999px',
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        background: colors.accent + '22',
+                        color: colors.accent,
+                        verticalAlign: 'middle',
+                      }}>owner</span>
+                    )}
+                  </td>
                   <td style={{ ...s.td, color: colors.muted }}>{d.phone || '-'}</td>
                   <td style={s.td}>{getVanLabel(d.van_size)}</td>
                   <td style={{ ...s.td, color: colors.muted }}>{d.depot_postcode}</td>
@@ -98,7 +116,7 @@ export default function DriverList() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

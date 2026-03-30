@@ -314,15 +314,18 @@ async function handlePayouts(req, res, sb) {
     .range(offset, offset + lim - 1);
 
   if (status && status !== 'all') query = query.eq('status', status);
+  if (from) query = query.gte('jobs.move_date', from);
+  if (to)   query = query.lte('jobs.move_date', to);
 
   const { data: payouts, count, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
 
-  // Summary
-  const { data: allPayouts } = await sb.from('payouts').select('gross_gbp, platform_fee_gbp, net_gbp, jobs(move_date)');
-  let filtered = allPayouts || [];
-  if (from) filtered = filtered.filter(p => p.jobs?.move_date >= from);
-  if (to)   filtered = filtered.filter(p => p.jobs?.move_date <= to);
+  // Summary (also filtered by date)
+  let sumQuery = sb.from('payouts').select('gross_gbp, platform_fee_gbp, net_gbp, jobs(move_date)');
+  if (from) sumQuery = sumQuery.gte('jobs.move_date', from);
+  if (to)   sumQuery = sumQuery.lte('jobs.move_date', to);
+  const { data: allPayouts } = await sumQuery;
+  const filtered = allPayouts || [];
 
   const summary = {
     total_gross: filtered.reduce((s, p) => s + Number(p.gross_gbp), 0),
@@ -517,15 +520,17 @@ async function handleExport(req, res, sb) {
   if (type === 'payouts') {
     let query = sb.from('payouts').select('id, gross_gbp, platform_fee_gbp, net_gbp, status, created_at, drivers(name), jobs(move_date, funnel_job_ref)');
     if (status && status !== 'all') query = query.eq('status', status);
+    if (from) query = query.gte('jobs.move_date', from);
+    if (to) query = query.lte('jobs.move_date', to);
     const { data } = await query.order('created_at', { ascending: false });
     const rows = (data || []).map(p => [p.id, p.drivers?.name || '', p.jobs?.move_date || '', p.gross_gbp, p.platform_fee_gbp, p.net_gbp, p.status, p.created_at]);
     return sendCSV(res, 'payouts', ['ID','Driver','Move Date','Gross','Fee','Net','Status','Created'], rows);
   }
 
   if (type === 'drivers') {
-    const { data } = await sb.from('drivers').select('id, name, phone, email, van_size, depot_postcode, approval_status, online, rating, rating_count, created_at').order('created_at', { ascending: false });
-    const rows = (data || []).map(d => [d.id, d.name, d.phone || '', d.email || '', d.van_size, d.depot_postcode, d.approval_status, d.online, d.rating || '', d.rating_count, d.created_at]);
-    return sendCSV(res, 'drivers', ['ID','Name','Phone','Email','Van','Depot','Approval','Online','Rating','Reviews','Created'], rows);
+    const { data } = await sb.from('drivers').select('id, name, phone, email, van_size, depot_postcode, approval_status, online, rating, rating_count, driver_type, priority_window_mins, created_at').order('created_at', { ascending: false });
+    const rows = (data || []).map(d => [d.id, d.name, d.phone || '', d.email || '', d.van_size, d.depot_postcode, d.approval_status, d.online, d.rating || '', d.rating_count, d.driver_type || 'pool', d.priority_window_mins ?? '', d.created_at]);
+    return sendCSV(res, 'drivers', ['ID','Name','Phone','Email','Van','Depot','Approval','Online','Rating','Reviews','Type','Priority Window','Created'], rows);
   }
 
   if (type === 'invoices') {

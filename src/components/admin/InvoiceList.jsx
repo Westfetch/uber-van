@@ -99,13 +99,27 @@ export default function InvoiceList() {
     }
   }
 
+  const [failErr, setFailErr] = useState('');
+
   async function handleFail(invoiceId) {
-    await api('/api/admin?action=invoice-fail', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ invoice_id: invoiceId }),
-    });
-    load();
+    if (!window.confirm('Mark this invoice as failed?')) return;
+    setFailErr('');
+    try {
+      const res = await api('/api/admin?action=invoice-fail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ invoice_id: invoiceId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setFailErr(err.error || 'Failed to update invoice');
+      } else {
+        load();
+      }
+    } catch {
+      setFailErr('Failed to update invoice');
+    }
+    setTimeout(() => setFailErr(''), 3000);
   }
 
   async function toggleDetail(inv) {
@@ -143,7 +157,7 @@ export default function InvoiceList() {
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+      <div style={s.statRow}>
         <div style={s.statCard}>
           <p style={s.statValue}>£{Number(summary.total_invoiced || 0).toFixed(2)}</p>
           <p style={s.statLabel}>Total Invoiced</p>
@@ -178,6 +192,8 @@ export default function InvoiceList() {
         <input style={{ ...s.input, maxWidth: '160px' }} type="date" value={to} onChange={e => setTo(e.target.value)} />
       </div>
 
+      {failErr && <p style={{ color: colors.error, fontSize: '0.85rem', margin: '0 0 8px' }}>{failErr}</p>}
+
       {/* Table */}
       <div style={s.card}>
         {loading ? (
@@ -185,7 +201,7 @@ export default function InvoiceList() {
         ) : invoices.length === 0 ? (
           <p style={{ color: colors.muted, textAlign: 'center', padding: '20px' }}>No invoices</p>
         ) : (
-          <table style={s.table}>
+          <div style={s.tableWrap}><table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Invoice</th>
@@ -203,8 +219,8 @@ export default function InvoiceList() {
                   <tr
                     key={inv.id}
                     style={s.trClickable}
-                    onMouseEnter={e => e.currentTarget.style.background = '#1e1e1e'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    onPointerEnter={s.trHoverOn}
+                    onPointerLeave={s.trHoverOff}
                   >
                     <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '0.8rem', color: colors.muted }} onClick={() => toggleDetail(inv)}>
                       {inv.invoice_number}
@@ -220,13 +236,13 @@ export default function InvoiceList() {
                       {inv.status === 'issued' && (
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button
-                            style={{ ...s.btnSmall, fontSize: '0.7rem', padding: '4px 8px' }}
+                            style={{ ...s.btnSmall, minHeight: '44px' }}
                             onClick={() => { setPayModal(inv); setPayRef(''); }}
                           >
                             Mark Paid
                           </button>
                           <button
-                            style={{ ...s.btnOutline, fontSize: '0.7rem', padding: '4px 8px', color: colors.error, borderColor: colors.error }}
+                            style={{ ...s.btnOutline, minHeight: '44px', color: colors.error, borderColor: colors.error }}
                             onClick={() => handleFail(inv.id)}
                           >
                             Failed
@@ -268,7 +284,7 @@ export default function InvoiceList() {
                 </>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -313,7 +329,8 @@ export default function InvoiceList() {
 
 const modalOverlay = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
+  display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '15vh', zIndex: 200,
+  overflowY: 'auto',
 };
 const modalBox = {
   background: '#1a1a1a', borderRadius: '12px', padding: '24px',

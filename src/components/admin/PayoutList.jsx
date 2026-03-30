@@ -51,13 +51,30 @@ export default function PayoutList() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [status, from, to]);
 
+  const [updatingId, setUpdatingId] = useState(null);
+  const [updateErr, setUpdateErr] = useState('');
+
   async function updatePayout(payoutId, newStatus) {
-    await api('/api/admin?action=payout-update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ payout_id: payoutId, status: newStatus }),
-    });
-    load();
+    setUpdatingId(payoutId);
+    setUpdateErr('');
+    try {
+      const res = await api('/api/admin?action=payout-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ payout_id: payoutId, status: newStatus }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setUpdateErr(err.error || 'Failed to update payout');
+      } else {
+        load();
+      }
+    } catch {
+      setUpdateErr('Failed to update payout');
+    } finally {
+      setUpdatingId(null);
+      setTimeout(() => setUpdateErr(''), 3000);
+    }
   }
 
   return (
@@ -68,7 +85,7 @@ export default function PayoutList() {
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+      <div style={s.statRow}>
         <div style={s.statCard}>
           <p style={s.statValue}>£{Number(summary.total_gross || 0).toFixed(2)}</p>
           <p style={s.statLabel}>Total Revenue</p>
@@ -106,6 +123,8 @@ export default function PayoutList() {
         <input style={{ ...s.input, maxWidth: '160px' }} type="date" value={to} onChange={e => setTo(e.target.value)} />
       </div>
 
+      {updateErr && <p style={{ color: colors.error, fontSize: '0.85rem', margin: '0 0 8px' }}>{updateErr}</p>}
+
       {/* Table */}
       <div style={s.card}>
         {loading ? (
@@ -113,7 +132,7 @@ export default function PayoutList() {
         ) : payouts.length === 0 ? (
           <p style={{ color: colors.muted, textAlign: 'center', padding: '20px' }}>No payouts</p>
         ) : (
-          <table style={s.table}>
+          <div style={s.tableWrap}><table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Date</th>
@@ -131,8 +150,8 @@ export default function PayoutList() {
                 <tr
                   key={p.id}
                   style={s.trClickable}
-                  onMouseEnter={e => e.currentTarget.style.background = '#1e1e1e'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onPointerEnter={s.trHoverOn}
+                  onPointerLeave={s.trHoverOff}
                 >
                   <td style={s.td} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>{p.move_date || '-'}</td>
                   <td style={s.td} onClick={() => navigate(`/admin/jobs/${p.job_id}`)}>{p.driver_name || '-'}</td>
@@ -144,15 +163,27 @@ export default function PayoutList() {
                   <td style={s.td}>
                     {p.status === 'pending' && (
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button style={{ ...s.btnSmall, fontSize: '0.7rem', padding: '4px 8px' }} onClick={() => updatePayout(p.id, 'transferred')}>Transferred</button>
-                        <button style={{ ...s.btnOutline, fontSize: '0.7rem', padding: '4px 8px', color: colors.error, borderColor: colors.error }} onClick={() => updatePayout(p.id, 'failed')}>Failed</button>
+                        <button
+                          style={{ ...s.btnSmall, minHeight: '44px', opacity: updatingId === p.id ? 0.5 : 1 }}
+                          disabled={updatingId === p.id}
+                          onClick={() => updatePayout(p.id, 'transferred')}
+                        >
+                          {updatingId === p.id ? '...' : 'Transferred'}
+                        </button>
+                        <button
+                          style={{ ...s.btnOutline, minHeight: '44px', color: colors.error, borderColor: colors.error, opacity: updatingId === p.id ? 0.5 : 1 }}
+                          disabled={updatingId === p.id}
+                          onClick={() => updatePayout(p.id, 'failed')}
+                        >
+                          Failed
+                        </button>
                       </div>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

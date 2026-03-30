@@ -106,6 +106,7 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [funnelSaving, setFunnelSaving] = useState({});
+  const [funnelMsg, setFunnelMsg] = useState({});
   const [updatedAt, setUpdatedAt] = useState(null);
   const [drivers, setDrivers] = useState([]);
 
@@ -140,22 +141,35 @@ export default function ConfigPage() {
       });
       const d = await res.json();
       if (d.pricing) setPricing(d.pricing);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch { /* */ }
+      setSaved('Saved — quotes will use new values within 5 minutes');
+      setTimeout(() => setSaved(''), 3000);
+    } catch {
+      setSaved('Error saving pricing');
+      setTimeout(() => setSaved(''), 3000);
+    }
     setSaving(false);
   }
 
   async function saveFunnel(f) {
     setFunnelSaving(p => ({ ...p, [f.id]: true }));
+    setFunnelMsg(p => ({ ...p, [f.id]: '' }));
     try {
-      await api('/api/admin?action=funnel-update', {
+      const res = await api('/api/admin?action=funnel-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ funnel_id: f.id, platform_fee_pct: f.platform_fee_pct, depot_postcode: f.depot_postcode, owner_driver_id: f.owner_driver_id || null }),
       });
-    } catch { /* */ }
+      if (res.ok) {
+        setFunnelMsg(p => ({ ...p, [f.id]: 'Saved' }));
+      } else {
+        const err = await res.json();
+        setFunnelMsg(p => ({ ...p, [f.id]: err.error || 'Error saving' }));
+      }
+    } catch {
+      setFunnelMsg(p => ({ ...p, [f.id]: 'Error saving' }));
+    }
     setFunnelSaving(p => ({ ...p, [f.id]: false }));
+    setTimeout(() => setFunnelMsg(p => ({ ...p, [f.id]: '' })), 3000);
   }
 
   if (loading) return <p style={{ color: colors.muted }}>Loading config...</p>;
@@ -210,7 +224,7 @@ export default function ConfigPage() {
         <button onClick={savePricing} disabled={saving} style={{ ...s.btn, opacity: saving ? 0.6 : 1 }}>
           {saving ? 'Saving...' : 'Save pricing'}
         </button>
-        {saved && <span style={{ color: '#4ade80', fontSize: '0.85rem' }}>Saved — quotes will use new values within 5 minutes</span>}
+        {saved && <span style={{ color: saved.startsWith('Error') ? colors.error : '#4ade80', fontSize: '0.85rem' }}>{saved}</span>}
       </div>
 
       {/* Funnel settings */}
@@ -248,21 +262,26 @@ export default function ConfigPage() {
                 style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
               >
                 <option value="">None (pool only)</option>
-                {drivers.map(d => (
+                {drivers.filter(d => d.driver_type === 'owner').map(d => (
                   <option key={d.id} value={d.id}>
-                    {d.name}{d.driver_type === 'owner' ? ' (owner)' : ''} — {d.depot_postcode}
+                    {d.name} — {d.depot_postcode}
                   </option>
                 ))}
               </select>
             </div>
           </div>
-          <button
-            onClick={() => saveFunnel(f)}
-            disabled={funnelSaving[f.id]}
-            style={{ ...s.btnSmall, opacity: funnelSaving[f.id] ? 0.6 : 1 }}
-          >
-            {funnelSaving[f.id] ? 'Saving...' : 'Save funnel'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              onClick={() => saveFunnel(f)}
+              disabled={funnelSaving[f.id]}
+              style={{ ...s.btnSmall, opacity: funnelSaving[f.id] ? 0.6 : 1 }}
+            >
+              {funnelSaving[f.id] ? 'Saving...' : 'Save funnel'}
+            </button>
+            {funnelMsg[f.id] && (
+              <span style={{ fontSize: '0.85rem', color: funnelMsg[f.id] === 'Saved' ? '#4ade80' : colors.error }}>{funnelMsg[f.id]}</span>
+            )}
+          </div>
         </div>
       ))}
     </div>

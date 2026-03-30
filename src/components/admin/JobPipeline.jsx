@@ -97,7 +97,7 @@ export default function JobPipeline() {
         ) : jobs.length === 0 ? (
           <p style={{ color: colors.muted, textAlign: 'center', padding: '20px' }}>No jobs found</p>
         ) : (
-          <table style={s.table}>
+          <div style={s.tableWrap}><table style={s.table}>
             <thead>
               <tr>
                 <th style={s.th}>Date</th>
@@ -114,8 +114,8 @@ export default function JobPipeline() {
                   key={job.id}
                   style={s.trClickable}
                   onClick={() => navigate(`/admin/jobs/${job.id}`)}
-                  onMouseEnter={e => e.currentTarget.style.background = '#1e1e1e'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onPointerEnter={s.trHoverOn}
+                  onPointerLeave={s.trHoverOff}
                 >
                   <td style={s.td}>{job.move_date || '-'}</td>
                   <td style={s.td}>{job.customer_name || '-'}</td>
@@ -128,7 +128,7 @@ export default function JobPipeline() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../lib/api.js';
 import { getToken, removeToken, getTokenSync } from '../../lib/tokenStore.js';
@@ -26,11 +26,31 @@ const NAV = [
   { path: '/admin/config',   label: 'Config' },
 ];
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handler = e => setMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return mobile;
+}
+
 export default function AdminShell() {
   const [admin, setAdmin]         = useState(null);
   const [checking, setChecking]   = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate                  = useNavigate();
   const location                  = useLocation();
+  const isMobile                  = useIsMobile();
+
+  // Close sidebar on navigation (mobile)
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [location.pathname, isMobile]);
 
   useEffect(() => {
     getToken('admin_token').then(token => {
@@ -71,11 +91,31 @@ export default function AdminShell() {
 
   if (location.pathname === '/admin/login') return <Navigate to="/admin/jobs" replace />;
 
+  const sidebarStyle = isMobile
+    ? { ...s.sidebar, transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)' }
+    : s.sidebar;
+
   return (
     <AdminProvider value={{ admin, token: getTokenSync('admin_token'), logout }}>
       <div style={s.page}>
+        {/* Mobile top bar */}
+        {isMobile && (
+          <div style={s.mobileTopBar}>
+            <button style={s.hamburger} onClick={() => setSidebarOpen(true)}>
+              &#9776;
+            </button>
+            <AdminIcon size={20} />
+            <span style={{ color: colors.white, fontWeight: 700, fontSize: '0.9rem' }}>Admin</span>
+          </div>
+        )}
+
+        {/* Backdrop (mobile only) */}
+        {isMobile && sidebarOpen && (
+          <div style={s.sidebarBackdrop} onClick={() => setSidebarOpen(false)} />
+        )}
+
         {/* Sidebar */}
-        <nav style={s.sidebar}>
+        <nav style={sidebarStyle}>
           <div style={s.sidebarLogo}>
             <AdminIcon size={28} />
             <p style={s.sidebarLogoText}>Admin</p>
@@ -105,7 +145,7 @@ export default function AdminShell() {
         </nav>
 
         {/* Content */}
-        <main style={s.content}>
+        <main style={isMobile ? s.contentMobile : s.content}>
           <Routes>
             <Route index element={<Navigate to="/admin/jobs" replace />} />
             <Route path="login" element={<Navigate to="/admin/jobs" replace />} />
