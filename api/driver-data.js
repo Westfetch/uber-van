@@ -6,6 +6,7 @@
 
 import { verifyDriver, getSupabaseAdmin } from './_lib/auth.js';
 import cors from './_lib/cors.js';
+import { VAN_DB_VALUES } from './_lib/vanConfig.js';
 
 export default async function handler(req, res) {
   if (cors(req, res)) return;
@@ -27,6 +28,7 @@ export default async function handler(req, res) {
     case 'bank-details':   return handleBankDetails(req, res, sb, caller);
     case 'invoices':       return handleInvoices(req, res, sb, caller);
     case 'invoice-detail': return handleInvoiceDetail(req, res, sb, caller);
+    case 'van-settings':   return handleVanSettings(req, res, sb, caller);
     case 'owner-settings': return handleOwnerSettings(req, res, sb, caller);
     case 'referral-stats': return handleReferralStats(req, res, sb, caller);
     case 'job-board':      return handleJobBoard(req, res, sb, caller);
@@ -307,12 +309,38 @@ async function handleInvoiceDetail(req, res, sb, caller) {
   res.json({ invoice, lines: lines || [] });
 }
 
-// ── Owner settings: GET/POST priority window, radius, crew, blocked dates ───
+// ── Van settings: POST van_size + crew_count (all drivers) ──────────────────
+async function handleVanSettings(req, res, sb, caller) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { van_size, crew_count } = req.body || {};
+  const updates = {};
+
+  if (van_size !== undefined) {
+    if (!VAN_DB_VALUES.includes(van_size))
+      return res.status(400).json({ error: `van_size must be one of: ${VAN_DB_VALUES.join(', ')}` });
+    updates.van_size = van_size;
+  }
+  if (crew_count !== undefined) {
+    const c = parseInt(crew_count);
+    if (isNaN(c) || c < 0 || c > 2) return res.status(400).json({ error: 'crew_count must be 0-2' });
+    updates.crew_count = c;
+  }
+
+  if (Object.keys(updates).length === 0)
+    return res.status(400).json({ error: 'No fields to update' });
+
+  const { error } = await sb.from('drivers').update(updates).eq('id', caller.id);
+  if (error) return res.status(500).json({ error: 'Failed to save settings' });
+
+  res.json({ ok: true, ...updates });
+}
+
+// ── Owner settings: GET/POST priority window, radius, blocked dates ─────────
 async function handleOwnerSettings(req, res, sb, caller) {
-  // Verify this driver is an owner
   const { data: driver } = await sb
     .from('drivers')
-    .select('driver_type, priority_window_mins, working_radius_miles, crew_count, blocked_dates')
+    .select('driver_type, priority_window_mins, working_radius_miles, blocked_dates')
     .eq('id', caller.id)
     .maybeSingle();
 
@@ -323,14 +351,13 @@ async function handleOwnerSettings(req, res, sb, caller) {
     return res.json({
       priority_window_mins: driver.priority_window_mins,
       working_radius_miles: driver.working_radius_miles,
-      crew_count: driver.crew_count,
       blocked_dates: driver.blocked_dates || [],
     });
   }
 
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { priority_window_mins, working_radius_miles, crew_count, blocked_dates } = req.body || {};
+  const { priority_window_mins, working_radius_miles, blocked_dates } = req.body || {};
   const updates = {};
 
   if (priority_window_mins !== undefined) {
@@ -347,11 +374,6 @@ async function handleOwnerSettings(req, res, sb, caller) {
       if (isNaN(r) || r < 1) return res.status(400).json({ error: 'working_radius_miles must be >= 1 or null' });
       updates.working_radius_miles = r;
     }
-  }
-  if (crew_count !== undefined) {
-    const c = parseInt(crew_count);
-    if (isNaN(c) || c < 0 || c > 10) return res.status(400).json({ error: 'crew_count must be 0-10' });
-    updates.crew_count = c;
   }
   if (blocked_dates !== undefined) {
     if (!Array.isArray(blocked_dates)) return res.status(400).json({ error: 'blocked_dates must be an array' });

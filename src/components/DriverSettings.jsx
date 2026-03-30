@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import api from '../lib/api.js';
 import { removeToken, getTokenSync } from '../lib/tokenStore.js';
 import OnlineToggle from './OnlineToggle.jsx';
+import { VAN_DB_VALUES, getVanLabel } from '../lib/vanConfig.js';
 
 function formatWeek(start, end) {
   const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -43,10 +44,16 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
   const [expanded, setExpanded] = useState(null);
   const [lines, setLines]      = useState([]);
 
+  // Van settings (all drivers)
+  const [vanSize, setVanSize]         = useState('');
+  const [crewCount, setCrewCount]     = useState(0);
+  const [vanSaving, setVanSaving]     = useState(false);
+  const [vanSaved, setVanSaved]       = useState(false);
+  const [vanError, setVanError]       = useState('');
+
   // Owner settings
   const [ownerSettings, setOwnerSettings] = useState(null);
   const [priorityMins, setPriorityMins]   = useState(30);
-  const [crewCount, setCrewCount]         = useState(0);
   const [radiusMiles, setRadiusMiles]     = useState('');
   const [blockedDates, setBlockedDates]   = useState([]);
   const [ownerSaving, setOwnerSaving]     = useState(false);
@@ -72,6 +79,8 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
         if (driverData.bank_account_name) setAccountName(driverData.bank_account_name);
         if (driverData.bank_sort_code) setSortCode(driverData.bank_sort_code);
         if (driverData.bank_account_no) setAccountNo(driverData.bank_account_no);
+        if (driverData.van_size) setVanSize(driverData.van_size);
+        setCrewCount(driverData.crew_count || 0);
       }
 
       if (invoicesRes.ok) {
@@ -86,7 +95,6 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
           const oData = await ownerRes.json();
           setOwnerSettings(oData);
           setPriorityMins(oData.priority_window_mins || 30);
-          setCrewCount(oData.crew_count || 0);
           setRadiusMiles(oData.working_radius_miles || '');
           setBlockedDates(oData.blocked_dates || []);
         }
@@ -118,6 +126,34 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
       setOnline(prev);
     } finally {
       setToggling(false);
+    }
+  }
+
+  async function handleSaveVan(e) {
+    e.preventDefault();
+    setVanSaving(true);
+    setVanError('');
+    setVanSaved(false);
+
+    try {
+      const token = getTokenSync('driver_token');
+      const res = await api('/api/driver-data?type=van-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ van_size: vanSize, crew_count: crewCount }),
+      });
+
+      if (res.ok) {
+        setVanSaved(true);
+        setTimeout(() => setVanSaved(false), 3000);
+      } else {
+        const data = await res.json();
+        setVanError(data.error || 'Failed to save');
+      }
+    } catch {
+      setVanError('Network error');
+    } finally {
+      setVanSaving(false);
     }
   }
 
@@ -184,7 +220,6 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           priority_window_mins: priorityMins,
-          crew_count: crewCount,
           working_radius_miles: radiusMiles === '' ? null : parseInt(radiusMiles),
           blocked_dates: blockedDates,
         }),
@@ -220,6 +255,61 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
         <div style={s.headerTitle}>Settings</div>
       </div>
 
+      {/* Van settings — all drivers */}
+      <section style={s.section}>
+        <div style={s.sectionTitle}>MY VAN</div>
+        <div style={s.card}>
+          <form onSubmit={handleSaveVan}>
+            <label style={s.label}>Van size</label>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {VAN_DB_VALUES.map(v => (
+                <button
+                  key={v} type="button"
+                  onClick={() => setVanSize(v)}
+                  style={{
+                    flex: 1, minWidth: '55px', padding: '10px 4px', borderRadius: '8px', border: 'none',
+                    background: vanSize === v ? '#d946ef' : '#222',
+                    color: vanSize === v ? '#fff' : '#888',
+                    fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer',
+                  }}
+                >
+                  {getVanLabel(v, 'admin').replace(/\s*\(.*\)/, '')}
+                </button>
+              ))}
+            </div>
+
+            <label style={s.label}>Crew (including you)</label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              {[1, 2, 3].map(n => (
+                <button
+                  key={n} type="button"
+                  onClick={() => setCrewCount(n - 1)}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: '8px', border: 'none',
+                    background: crewCount === n - 1 ? '#d946ef' : '#222',
+                    color: crewCount === n - 1 ? '#fff' : '#888',
+                    fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              disabled={vanSaving || !vanSize}
+              style={{ ...s.btn, opacity: (vanSaving || !vanSize) ? 0.6 : 1 }}
+            >
+              {vanSaving ? 'Saving...' : 'Save van settings'}
+            </button>
+
+            {vanSaved && <p style={s.success}>Van settings saved</p>}
+            {vanError && <p style={s.error}>{vanError}</p>}
+          </form>
+        </div>
+      </section>
+
       {/* Owner-driver settings (only shown for owner type) */}
       {settings?.driver_type === 'owner' && (
         <section style={s.section}>
@@ -241,24 +331,6 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
                 You'll have {formatMins(priorityMins)} to accept before jobs go to the driver pool.
                 For same-day bookings, a shorter window helps your customer get a driver faster.
               </p>
-
-              <label style={s.label}>Crew available (helpers)</label>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                {[0, 1, 2, 3, 4].map(n => (
-                  <button
-                    key={n} type="button"
-                    onClick={() => setCrewCount(n)}
-                    style={{
-                      flex: 1, padding: '10px 0', borderRadius: '8px', border: 'none',
-                      background: crewCount === n ? '#d946ef' : '#222',
-                      color: crewCount === n ? '#fff' : '#888',
-                      fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
 
               <label style={s.label}>Working radius (miles)</label>
               <input

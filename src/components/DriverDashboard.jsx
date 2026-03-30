@@ -318,12 +318,7 @@ export default function DriverDashboard({ driver, onLogout, onDriverUpdate }) {
             </section>
           )}
 
-          {/* Online toggle — compact when already online */}
-          {online && (
-            <section style={{ padding: '0 20px 32px' }}>
-              <OnlineToggle online={online} onToggle={handleToggle} toggling={toggling} />
-            </section>
-          )}
+          {/* Online toggle lives in Settings when already online */}
         </>
       )}
     </div>
