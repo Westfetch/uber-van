@@ -63,13 +63,15 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
         api('/api/driver-data?type=invoices', { headers }),
       ]);
 
+      let driverData = null;
       if (settingsRes.ok) {
         const data = await settingsRes.json();
-        setSettings(data.driver);
-        setOnline(data.driver.online);
-        if (data.driver.bank_account_name) setAccountName(data.driver.bank_account_name);
-        if (data.driver.bank_sort_code) setSortCode(data.driver.bank_sort_code);
-        if (data.driver.bank_account_no) setAccountNo(data.driver.bank_account_no);
+        driverData = data.driver;
+        setSettings(driverData);
+        setOnline(driverData.online);
+        if (driverData.bank_account_name) setAccountName(driverData.bank_account_name);
+        if (driverData.bank_sort_code) setSortCode(driverData.bank_sort_code);
+        if (driverData.bank_account_no) setAccountNo(driverData.bank_account_no);
       }
 
       if (invoicesRes.ok) {
@@ -78,18 +80,15 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
       }
 
       // Load owner settings if applicable
-      if (settingsRes.ok) {
-        const sData = await settingsRes.clone().json().catch(() => null);
-        if (sData?.driver?.driver_type === 'owner') {
-          const ownerRes = await api('/api/driver-data?type=owner-settings', { headers });
-          if (ownerRes.ok) {
-            const oData = await ownerRes.json();
-            setOwnerSettings(oData);
-            setPriorityMins(oData.priority_window_mins || 30);
-            setCrewCount(oData.crew_count || 0);
-            setRadiusMiles(oData.working_radius_miles || '');
-            setBlockedDates(oData.blocked_dates || []);
-          }
+      if (driverData?.driver_type === 'owner') {
+        const ownerRes = await api('/api/driver-data?type=owner-settings', { headers });
+        if (ownerRes.ok) {
+          const oData = await ownerRes.json();
+          setOwnerSettings(oData);
+          setPriorityMins(oData.priority_window_mins || 30);
+          setCrewCount(oData.crew_count || 0);
+          setRadiusMiles(oData.working_radius_miles || '');
+          setBlockedDates(oData.blocked_dates || []);
         }
       }
 
