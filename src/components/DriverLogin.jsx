@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { startAuthentication } from '@simplewebauthn/browser';
 import api from '../lib/api.js';
 import { setToken } from '../lib/tokenStore.js';
+import { enableBiometric } from '../lib/nativeBiometric.js';
 import VanIcon from './icons/VanIcon.jsx';
 
 export default function DriverLogin({ onLogin }) {
@@ -10,11 +10,6 @@ export default function DriverLogin({ onLogin }) {
   const [error, setError]         = useState('');
   const [loading, setLoading]     = useState(false);
 
-  // Biometric state
-  const [bioChecking, setBioChecking] = useState(true);
-  const [hasBiometric, setHasBiometric] = useState(false);
-  const [bioError, setBioError]   = useState('');
-
   // "Locked out?" support form
   const [showSupport, setShowSupport] = useState(false);
   const [supportName, setSupportName] = useState('');
@@ -22,63 +17,11 @@ export default function DriverLogin({ onLogin }) {
   const [supportSent, setSupportSent] = useState(false);
   const [supportLoading, setSupportLoading] = useState(false);
 
-  // On mount: check if this device has a stored driver name with biometric
+  // Pre-fill support name if we have a stored driver name.
   useEffect(() => {
     const storedName = localStorage.getItem('driver_name');
-    if (!storedName) { setBioChecking(false); return; }
-
-    setSupportName(storedName);
-    api(`/api/driver-auth?action=webauthn-auth-options&name=${encodeURIComponent(storedName)}`)
-      .then(r => {
-        if (r.ok) {
-          setHasBiometric(true);
-          return r.json().then(opts => tryBiometricLogin(opts));
-        }
-        setBioChecking(false);
-      })
-      .catch(() => setBioChecking(false));
+    if (storedName) setSupportName(storedName);
   }, []);
-
-  async function tryBiometricLogin(options) {
-    try {
-      const driverId = options.driverId;
-      const credential = await startAuthentication({ optionsJSON: options });
-
-      const res = await api('/api/driver-auth?action=webauthn-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...credential, driverId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Biometric login failed');
-
-      await setToken('driver_token', data.token);
-      onLogin(data.driver, { needsBioSetup: false });
-    } catch (err) {
-      if (err.name === 'NotAllowedError') {
-        // User cancelled — fall through to show login form
-        setBioError('');
-      } else {
-        setBioError(err.message);
-      }
-      setBioChecking(false);
-    }
-  }
-
-  async function retryBiometric() {
-    setBioError('');
-    setBioChecking(true);
-    const storedName = localStorage.getItem('driver_name');
-    try {
-      const r = await api(`/api/driver-auth?action=webauthn-auth-options&name=${encodeURIComponent(storedName)}`);
-      if (!r.ok) throw new Error('Failed to get challenge');
-      const opts = await r.json();
-      await tryBiometricLogin(opts);
-    } catch (err) {
-      setBioError(err.message);
-      setBioChecking(false);
-    }
-  }
 
   // Setup code login
   async function handleSubmit(e) {
@@ -95,7 +38,8 @@ export default function DriverLogin({ onLogin }) {
       if (!res.ok) throw new Error(data.error || 'Login failed');
       await setToken('driver_token', data.token);
       localStorage.setItem('driver_name', name.trim());
-      onLogin(data.driver, { needsBioSetup: true });
+      enableBiometric();
+      onLogin(data.driver);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -126,56 +70,7 @@ export default function DriverLogin({ onLogin }) {
     }
   }
 
-  // Loading / checking biometric
-  if (bioChecking) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <div style={styles.logo}>
-            <VanIcon size={48} />
-            <h1 style={styles.logoText}>Driver Portal</h1>
-          </div>
-          <p style={{ color: '#888', textAlign: 'center', fontSize: '0.9rem' }}>Checking device authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Biometric login screen (driver has registered biometric, token expired)
-  if (hasBiometric) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <div style={styles.logo}>
-            <VanIcon size={48} />
-            <h1 style={styles.logoText}>Driver Portal</h1>
-          </div>
-
-          <div style={{ textAlign: 'center' }}>
-            <span style={{ fontSize: '3rem' }}>🔐</span>
-            <p style={{ color: '#888', fontSize: '0.9rem', margin: '16px 0 24px' }}>
-              Tap below to sign in with your device unlock.
-            </p>
-
-            {bioError && <p style={styles.error}>{bioError}</p>}
-
-            <button style={styles.btn} onClick={retryBiometric}>
-              Sign in with device unlock
-            </button>
-
-            <button
-              style={{ ...styles.linkBtn, marginTop: '20px' }}
-              onClick={() => { setHasBiometric(false); }}
-            >
-              Use setup code instead
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Setup code login form (first-time or fallback)
+  // Setup code login form
   return (
     <div style={styles.page}>
       <div style={styles.card}>

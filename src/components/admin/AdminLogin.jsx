@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { startAuthentication } from '@simplewebauthn/browser';
+import { useState } from 'react';
 import api from '../../lib/api.js';
 import { setToken } from '../../lib/tokenStore.js';
+import { enableBiometric } from '../../lib/nativeBiometric.js';
 import { colors } from './styles.js';
 import AdminIcon from '../icons/AdminIcon.jsx';
 
@@ -10,57 +10,6 @@ export default function AdminLogin({ onLogin }) {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
-  const [hasBiometric, setHasBiometric] = useState(false);
-  const [checkingBio, setCheckingBio]   = useState(true);
-
-  // Check if biometric credentials exist
-  useEffect(() => {
-    api('/api/admin-auth?action=webauthn-auth-options')
-      .then(r => {
-        if (r.ok) setHasBiometric(true);
-        // 404 = no credentials registered, that's fine
-      })
-      .catch(() => {})
-      .finally(() => setCheckingBio(false));
-  }, []);
-
-  // Auto-trigger biometric on load if available
-  useEffect(() => {
-    if (hasBiometric && !checkingBio) biometricLogin();
-  }, [hasBiometric, checkingBio]);
-
-  async function biometricLogin() {
-    setError('');
-    setLoading(true);
-    try {
-      // Get fresh challenge options
-      const optRes = await api('/api/admin-auth?action=webauthn-auth-options');
-      if (!optRes.ok) throw new Error('Biometric not available');
-      const options = await optRes.json();
-
-      // Prompt biometric
-      const credential = await startAuthentication({ optionsJSON: options });
-
-      // Verify with server
-      const verRes = await api('/api/admin-auth?action=webauthn-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credential),
-      });
-      const data = await verRes.json();
-      if (!verRes.ok) throw new Error(data.error || 'Biometric auth failed');
-
-      await setToken('admin_token', data.token);
-      onLogin(data.admin);
-    } catch (err) {
-      // User cancelled or biometric failed — show password form
-      if (err.name !== 'NotAllowedError') {
-        setError(err.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -75,6 +24,7 @@ export default function AdminLogin({ onLogin }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
       await setToken('admin_token', data.token);
+      enableBiometric();
       onLogin(data.admin);
     } catch (err) {
       setError(err.message);
@@ -90,35 +40,6 @@ export default function AdminLogin({ onLogin }) {
           <AdminIcon size={48} />
           <h1 style={styles.logoText}>Admin Portal</h1>
         </div>
-
-        {/* Biometric button */}
-        {hasBiometric && (
-          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-            <button
-              onClick={biometricLogin}
-              disabled={loading}
-              style={{
-                ...styles.btn,
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                opacity: loading ? 0.6 : 1,
-                fontSize: '1.1rem',
-                padding: '16px',
-              }}
-            >
-              <span style={{ fontSize: '1.3rem' }}>🔐</span>
-              {loading ? 'Authenticating...' : 'Sign in with biometric'}
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
-              <div style={{ flex: 1, height: '1px', background: colors.border }} />
-              <span style={{ color: colors.dim, fontSize: '0.75rem' }}>OR USE PASSWORD</span>
-              <div style={{ flex: 1, height: '1px', background: colors.border }} />
-            </div>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} style={styles.form}>
           <label style={styles.label}>Email</label>

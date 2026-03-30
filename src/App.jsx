@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DriverLogin from './components/DriverLogin.jsx';
-import BiometricSetup from './components/BiometricSetup.jsx';
 import DriverShell from './components/DriverShell.jsx';
 import JobOffer from './components/JobOffer.jsx';
 import JobView from './components/JobView.jsx';
@@ -11,6 +10,7 @@ import DriverLanding from './components/DriverLanding.jsx';
 import api from './lib/api.js';
 import { getToken, removeToken } from './lib/tokenStore.js';
 import { setupPush } from './lib/push.js';
+import { disableBiometric } from './lib/nativeBiometric.js';
 import VanIcon from './components/icons/VanIcon.jsx';
 
 const IS_ADMIN_APP = import.meta.env.VITE_APP_MODE === 'admin';
@@ -18,7 +18,6 @@ const IS_ADMIN_APP = import.meta.env.VITE_APP_MODE === 'admin';
 export default function App() {
   const [driver, setDriver]             = useState(null);
   const [checking, setChecking]         = useState(true);
-  const [needsBioSetup, setNeedsBioSetup] = useState(false);
 
   // On mount: verify stored token (secure storage on APK, localStorage on web)
   // Skip driver auth check if we're on /admin — AdminShell handles its own auth
@@ -39,7 +38,6 @@ export default function App() {
           if (data?.driver) {
             setDriver(data.driver);
             setupPush();
-            if (!data.hasWebauthn) setNeedsBioSetup(true);
           } else {
             removeToken('driver_token');
           }
@@ -49,19 +47,9 @@ export default function App() {
     });
   }, []);
 
-  function handleLogin(d, opts) {
+  function handleLogin(d) {
     setDriver(d);
     setupPush();
-    if (opts?.needsBioSetup) setNeedsBioSetup(true);
-  }
-
-  function handleBioComplete() {
-    setNeedsBioSetup(false);
-  }
-
-  function handleBioFail() {
-    setDriver(null);
-    setNeedsBioSetup(false);
   }
 
   if (checking) return (
@@ -69,11 +57,6 @@ export default function App() {
       <VanIcon size={40} />
     </div>
   );
-
-  // Biometric setup gate — shown after first login before dashboard access
-  if (driver && needsBioSetup) {
-    return <BiometricSetup onComplete={handleBioComplete} onFail={handleBioFail} />;
-  }
 
   return (
     <BrowserRouter>
@@ -101,7 +84,7 @@ export default function App() {
           IS_ADMIN_APP
             ? <Navigate to="/admin" replace />
             : driver
-              ? <DriverShell driver={driver} onLogout={() => setDriver(null)} onDriverUpdate={u => setDriver(d => ({ ...d, ...u }))} />
+              ? <DriverShell driver={driver} onLogout={() => { disableBiometric(); setDriver(null); }} onDriverUpdate={u => setDriver(d => ({ ...d, ...u }))} />
               : <Navigate to="/login" replace />
         } />
         <Route path="*" element={<Navigate to={IS_ADMIN_APP ? "/admin" : "/"} replace />} />
