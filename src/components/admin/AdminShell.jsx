@@ -98,17 +98,6 @@ export default function AdminShell() {
   return (
     <AdminProvider value={{ admin, token: getTokenSync('admin_token'), logout }}>
       <div style={s.page}>
-        {/* Mobile top bar */}
-        {isMobile && (
-          <div style={s.mobileTopBar}>
-            <button style={s.hamburger} onClick={() => setSidebarOpen(true)}>
-              &#9776;
-            </button>
-            <AdminIcon size={20} />
-            <span style={{ color: colors.white, fontWeight: 700, fontSize: '0.9rem' }}>Admin</span>
-          </div>
-        )}
-
         {/* Backdrop (mobile only) */}
         {isMobile && sidebarOpen && (
           <div style={s.sidebarBackdrop} onClick={() => setSidebarOpen(false)} />
@@ -146,6 +135,17 @@ export default function AdminShell() {
 
         {/* Content */}
         <main style={isMobile ? s.contentMobile : s.content}>
+          {/* Mobile top bar — inside main so it stacks above content, not beside it */}
+          {isMobile && (
+            <div style={s.mobileTopBar}>
+              <button style={s.hamburger} onClick={() => setSidebarOpen(true)}>
+                &#9776;
+              </button>
+              <AdminIcon size={20} />
+              <span style={{ color: colors.white, fontWeight: 700, fontSize: '0.9rem' }}>Admin</span>
+            </div>
+          )}
+          <div style={isMobile ? { padding: '16px' } : {}}>
           <Routes>
             <Route index element={<Navigate to="/admin/jobs" replace />} />
             <Route path="login" element={<Navigate to="/admin/jobs" replace />} />
@@ -160,6 +160,7 @@ export default function AdminShell() {
             <Route path="config" element={<ConfigPage />} />
             <Route path="*" element={<Navigate to="/admin/jobs" replace />} />
           </Routes>
+          </div>
         </main>
       </div>
     </AdminProvider>

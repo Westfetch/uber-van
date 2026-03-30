@@ -57,9 +57,7 @@ export const s = {
     zIndex: 99,
   },
   mobileTopBar: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 50,
+    flexShrink: 0,
     background: colors.card,
     borderBottom: `1px solid ${colors.border}`,
     padding: '10px 16px',
@@ -118,9 +116,11 @@ export const s = {
   contentMobile: {
     marginLeft: 0,
     flex: 1,
-    padding: '16px',
+    padding: 0,
     paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
     minHeight: '100dvh',
+    display: 'flex',
+    flexDirection: 'column',
   },
   header: {
     display: 'flex',
