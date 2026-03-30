@@ -1,18 +1,29 @@
-// DriverShell — bottom tab bar wrapper for driver app (Home + Settings).
+// DriverShell — bottom tab bar wrapper for driver app.
+// Tabs: Home, Jobs (board), Referrals (owner only), Settings.
 
 import { useState } from 'react';
 import DriverDashboard from './DriverDashboard.jsx';
 import DriverSettings from './DriverSettings.jsx';
+import JobBoard from './JobBoard.jsx';
+import ReferralDashboard from './ReferralDashboard.jsx';
 
 export default function DriverShell({ driver, onLogout, onDriverUpdate }) {
   const [tab, setTab] = useState('home');
+  const isOwner = driver?.driver_type === 'owner';
+
+  function renderTab() {
+    switch (tab) {
+      case 'home':      return <DriverDashboard driver={driver} onLogout={onLogout} onDriverUpdate={onDriverUpdate} />;
+      case 'jobs':      return <JobBoard driver={driver} />;
+      case 'referrals': return <ReferralDashboard driver={driver} />;
+      case 'settings':  return <DriverSettings driver={driver} onLogout={onLogout} onDriverUpdate={onDriverUpdate} />;
+      default:          return null;
+    }
+  }
 
   return (
     <div style={{ position: 'relative', minHeight: '100dvh' }}>
-      {tab === 'home'
-        ? <DriverDashboard driver={driver} onLogout={onLogout} onDriverUpdate={onDriverUpdate} />
-        : <DriverSettings driver={driver} onLogout={onLogout} onDriverUpdate={onDriverUpdate} />
-      }
+      {renderTab()}
 
       {/* Bottom tab bar */}
       <nav style={s.tabBar}>
@@ -26,6 +37,31 @@ export default function DriverShell({ driver, onLogout, onDriverUpdate }) {
           </svg>
           <span style={s.tabLabel}>Home</span>
         </button>
+
+        <button
+          style={{ ...s.tab, color: tab === 'jobs' ? '#d946ef' : '#666' }}
+          onClick={() => setTab('jobs')}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+            <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
+          </svg>
+          <span style={s.tabLabel}>Jobs</span>
+        </button>
+
+        {isOwner && (
+          <button
+            style={{ ...s.tab, color: tab === 'referrals' ? '#d946ef' : '#666' }}
+            onClick={() => setTab('referrals')}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+            </svg>
+            <span style={s.tabLabel}>Referrals</span>
+          </button>
+        )}
+
         <button
           style={{ ...s.tab, color: tab === 'settings' ? '#d946ef' : '#666' }}
           onClick={() => setTab('settings')}

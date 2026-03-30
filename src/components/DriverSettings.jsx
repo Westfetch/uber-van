@@ -42,6 +42,16 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
   const [expanded, setExpanded] = useState(null);
   const [lines, setLines]      = useState([]);
 
+  // Owner settings
+  const [ownerSettings, setOwnerSettings] = useState(null);
+  const [priorityMins, setPriorityMins]   = useState(30);
+  const [crewCount, setCrewCount]         = useState(0);
+  const [radiusMiles, setRadiusMiles]     = useState('');
+  const [blockedDates, setBlockedDates]   = useState([]);
+  const [ownerSaving, setOwnerSaving]     = useState(false);
+  const [ownerSaved, setOwnerSaved]       = useState(false);
+  const [ownerError, setOwnerError]       = useState('');
+
   useEffect(() => {
     async function load() {
       const token = localStorage.getItem('driver_token');
@@ -64,6 +74,22 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
       if (invoicesRes.ok) {
         const data = await invoicesRes.json();
         setInvoices(data.invoices || []);
+      }
+
+      // Load owner settings if applicable
+      if (settingsRes.ok) {
+        const sData = await settingsRes.clone().json().catch(() => null);
+        if (sData?.driver?.driver_type === 'owner') {
+          const ownerRes = await api('/api/driver-data?type=owner-settings', { headers });
+          if (ownerRes.ok) {
+            const oData = await ownerRes.json();
+            setOwnerSettings(oData);
+            setPriorityMins(oData.priority_window_mins || 30);
+            setCrewCount(oData.crew_count || 0);
+            setRadiusMiles(oData.working_radius_miles || '');
+            setBlockedDates(oData.blocked_dates || []);
+          }
+        }
       }
 
       setLoading(false);
@@ -145,6 +171,46 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
     }
   }
 
+  async function handleSaveOwner(e) {
+    e.preventDefault();
+    setOwnerSaving(true);
+    setOwnerError('');
+    setOwnerSaved(false);
+
+    try {
+      const token = localStorage.getItem('driver_token');
+      const res = await api('/api/driver-data?type=owner-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          priority_window_mins: priorityMins,
+          crew_count: crewCount,
+          working_radius_miles: radiusMiles === '' ? null : parseInt(radiusMiles),
+          blocked_dates: blockedDates,
+        }),
+      });
+
+      if (res.ok) {
+        setOwnerSaved(true);
+        setTimeout(() => setOwnerSaved(false), 3000);
+      } else {
+        const data = await res.json();
+        setOwnerError(data.error || 'Failed to save');
+      }
+    } catch {
+      setOwnerError('Network error');
+    } finally {
+      setOwnerSaving(false);
+    }
+  }
+
+  function formatMins(mins) {
+    if (mins < 60) return `${mins} minutes`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h} hour${h > 1 ? 's' : ''}`;
+  }
+
   if (loading) return <p style={s.muted}>Loading...</p>;
 
   return (
@@ -153,6 +219,71 @@ export default function DriverSettings({ driver, onLogout, onDriverUpdate }) {
       <div style={s.header}>
         <div style={s.headerTitle}>Settings</div>
       </div>
+
+      {/* Owner-driver settings (only shown for owner type) */}
+      {settings?.driver_type === 'owner' && (
+        <section style={s.section}>
+          <div style={s.sectionTitle}>MY BUSINESS</div>
+          <div style={s.card}>
+            <form onSubmit={handleSaveOwner}>
+              <label style={s.label}>Priority window</label>
+              <input
+                type="range"
+                min={5} max={240} step={5}
+                value={priorityMins}
+                onChange={e => setPriorityMins(parseInt(e.target.value))}
+                style={{ width: '100%', accentColor: '#d946ef' }}
+              />
+              <div style={{ color: '#d946ef', fontSize: '0.9rem', fontWeight: 700, textAlign: 'center', marginBottom: '4px' }}>
+                {formatMins(priorityMins)}
+              </div>
+              <p style={{ color: '#666', fontSize: '0.75rem', margin: '0 0 16px', lineHeight: 1.4 }}>
+                You'll have {formatMins(priorityMins)} to accept before jobs go to the driver pool.
+                For same-day bookings, a shorter window helps your customer get a driver faster.
+              </p>
+
+              <label style={s.label}>Crew available (helpers)</label>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                {[0, 1, 2, 3, 4].map(n => (
+                  <button
+                    key={n} type="button"
+                    onClick={() => setCrewCount(n)}
+                    style={{
+                      flex: 1, padding: '10px 0', borderRadius: '8px', border: 'none',
+                      background: crewCount === n ? '#d946ef' : '#222',
+                      color: crewCount === n ? '#fff' : '#888',
+                      fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+
+              <label style={s.label}>Working radius (miles)</label>
+              <input
+                style={s.input}
+                type="number"
+                value={radiusMiles}
+                onChange={e => setRadiusMiles(e.target.value)}
+                placeholder="No limit"
+                min={1}
+              />
+
+              <button
+                type="submit"
+                disabled={ownerSaving}
+                style={{ ...s.btn, opacity: ownerSaving ? 0.6 : 1 }}
+              >
+                {ownerSaving ? 'Saving...' : 'Save business settings'}
+              </button>
+
+              {ownerSaved && <p style={s.success}>Settings saved</p>}
+              {ownerError && <p style={s.error}>{ownerError}</p>}
+            </form>
+          </div>
+        </section>
+      )}
 
       {/* Payments card */}
       <section style={s.section}>

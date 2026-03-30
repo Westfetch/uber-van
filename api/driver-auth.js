@@ -16,7 +16,7 @@ import {
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
 
-const SAFE_COLS = 'id, name, phone, depot_postcode, van_size, online, push_subscription, approval_status';
+const SAFE_COLS = 'id, name, phone, depot_postcode, van_size, online, push_subscription, approval_status, driver_type';
 
 function hashCode(code) {
   return crypto.createHash('sha256').update(code.trim().toUpperCase()).digest('hex');

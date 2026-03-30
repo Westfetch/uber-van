@@ -1,6 +1,6 @@
 // api/funnel-webhook.js
 // Receives confirmed bookings from funnels (e.g. VDM wizard after Stripe deposit).
-// Verifies HMAC-SHA256 signature, writes job to DB, creates first job_offer for Joe.
+// Verifies HMAC-SHA256 signature, writes job to DB, dispatches to owner-driver or pool.
 //
 // POST /api/funnel-webhook
 // Headers: x-funnel-slug, x-signature (HMAC-SHA256 hex of raw body)
@@ -14,11 +14,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from './_lib/auth.js';
 import { sendPush } from './_lib/push.js';
-
-// Joe's driver ID — first dibs on all VDM jobs.
-// Set via env var so this doesn't need a code deploy when Joe's ID changes.
-const JOE_DRIVER_ID = process.env.JOE_DRIVER_ID;
-const OFFER_WINDOW_MINS = 30;
+import { advanceDispatch } from './_lib/dispatch.js';
 
 function verifySignature(rawBody, secret, signature) {
   const expected = crypto
@@ -47,10 +43,10 @@ export default async function handler(req, res) {
 
   const admin = getSupabaseAdmin();
 
-  // Look up funnel
+  // Look up funnel (now includes owner_driver_id)
   const { data: funnel, error: funnelErr } = await admin
     .from('funnels')
-    .select('id, platform_fee_pct, webhook_secret')
+    .select('id, platform_fee_pct, webhook_secret, owner_driver_id')
     .eq('slug', slug)
     .maybeSingle();
 
@@ -105,6 +101,8 @@ export default async function handler(req, res) {
       customer_quote_gbp, deposit_gbp, balance_gbp,
       stripe_payment_intent_id,
       status: 'pending_acceptance',
+      dispatch_phase: 'owner',
+      owner_referral_driver_id: funnel.owner_driver_id || null,
     })
     .select('id')
     .single();
@@ -122,49 +120,75 @@ export default async function handler(req, res) {
     created_by: 'system',
   });
 
-  // Calculate driver payout for Joe
-  // For MVP: payout = customer_quote × (1 - fee_pct/100)
-  // Full distance recalculation (driver depot → pickup → dest) done in accept-job
+  // Calculate driver payout
   const driverPayout = parseFloat(
     (customer_quote_gbp * (1 - funnel.platform_fee_pct / 100)).toFixed(2)
   );
 
-  const expiresAt = new Date(Date.now() + OFFER_WINDOW_MINS * 60 * 1000).toISOString();
+  // ── Dispatch: owner-driver first, then cascade/board ──────────────────────
+  let ownerOffered = false;
 
-  // Create offer for Joe (first dibs)
-  if (JOE_DRIVER_ID) {
-    await admin.from('job_offers').insert({
-      job_id:            job.id,
-      driver_id:         JOE_DRIVER_ID,
-      expires_at:        expiresAt,
-      driver_payout_gbp: driverPayout,
-    });
+  if (funnel.owner_driver_id) {
+    // Check owner eligibility
+    const { data: owner } = await admin
+      .from('drivers')
+      .select('id, online, approval_status, van_size, crew_count, blocked_dates, priority_window_mins, fcm_token')
+      .eq('id', funnel.owner_driver_id)
+      .maybeSingle();
 
-    await admin.from('job_events').insert({
-      job_id:     job.id,
-      event_type: 'offer_sent',
-      payload:    { driver_id: JOE_DRIVER_ID, payout_gbp: driverPayout, expires_at: expiresAt },
-      created_by: 'system',
-    });
+    const VAN_RANK = { swb: 1, mwb: 2, lwb: 3, luton: 4, '7.5t': 5 };
+    const jobVan = van_size || 'luton';
+    const ownerEligible = owner
+      && owner.approval_status === 'approved'
+      && owner.online
+      && (VAN_RANK[owner.van_size] || 0) >= (VAN_RANK[jobVan] || 0)
+      && (!crew_required || (owner.crew_count + 1) >= crew_required)
+      && !owner.blocked_dates?.includes(move_date);
 
-    // Push notification to driver's device (fire and forget)
-    const { data: driverRow } = await admin
-      .from('drivers').select('fcm_token').eq('id', JOE_DRIVER_ID).maybeSingle();
-    if (driverRow?.fcm_token) {
-      sendPush(driverRow.fcm_token, {
-        title: 'New job offer',
-        body: `${body.pickup_postcode} → ${body.destination_postcode} — ${body.move_date}`,
-        data: { offer_id: job.id },
-      }).catch(err => console.error('Push send failed:', err));
+    if (ownerEligible) {
+      const windowMins = owner.priority_window_mins || 30;
+      const expiresAt = new Date(Date.now() + windowMins * 60 * 1000).toISOString();
+
+      await admin.from('job_offers').insert({
+        job_id:            job.id,
+        driver_id:         owner.id,
+        expires_at:        expiresAt,
+        driver_payout_gbp: driverPayout,
+      });
+
+      await admin.from('job_events').insert({
+        job_id:     job.id,
+        event_type: 'offer_sent',
+        payload:    { driver_id: owner.id, payout_gbp: driverPayout, expires_at: expiresAt, phase: 'owner' },
+        created_by: 'system',
+      });
+
+      // Push notification
+      if (owner.fcm_token) {
+        sendPush(owner.fcm_token, {
+          title: 'New job offer',
+          body: `${body.pickup_postcode} → ${body.destination_postcode} — ${body.move_date}`,
+          data: { job_id: job.id },
+        }).catch(err => console.error('Push send failed:', err));
+      }
+
+      // Email notification (fire and forget)
+      fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/notify`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal': process.env.INTERNAL_SECRET || '' },
+        body:    JSON.stringify({ type: 'new_job', job_id: job.id, driver_id: owner.id }),
+      }).catch(err => console.error('Notify failed:', err));
+
+      ownerOffered = true;
     }
   }
 
-  // Notify Joe via email (fire and forget)
-  fetch(`${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/notify`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'x-internal': process.env.INTERNAL_SECRET || '' },
-    body:    JSON.stringify({ type: 'new_job', job_id: job.id, driver_id: JOE_DRIVER_ID }),
-  }).catch(err => console.error('Notify failed:', err));
+  // If no owner or owner ineligible — skip straight to cascade/board
+  if (!ownerOffered) {
+    advanceDispatch(admin, job.id).catch(err =>
+      console.error('[funnel-webhook] Dispatch advance failed:', err)
+    );
+  }
 
   res.json({ ok: true, job_id: job.id });
 }

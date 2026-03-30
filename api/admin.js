@@ -9,6 +9,7 @@ import { sendEmail } from './_lib/email.js';
 import { sendSMS } from './_lib/sms.js';
 import { VAN_DB_VALUES } from './_lib/vanConfig.js';
 import { generateWeeklyInvoices } from './_lib/invoices.js';
+import { sweepExpiredOffers } from './_lib/dispatch.js';
 
 export default async function handler(req, res) {
   if (cors(req, res)) return;
@@ -121,7 +122,7 @@ async function handleJob(req, res, sb) {
 async function handleDrivers(req, res, sb) {
   const { data: drivers, error } = await sb
     .from('drivers')
-    .select('id, name, phone, email, van_size, depot_postcode, online, approval_status, rating, rating_count, created_at')
+    .select('id, name, phone, email, van_size, depot_postcode, online, approval_status, rating, rating_count, driver_type, priority_window_mins, created_at')
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
@@ -171,14 +172,19 @@ async function handleDriver(req, res, sb) {
 async function handleDriverCreate(req, res, sb) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { name, phone, email, van_size, depot_postcode } = req.body || {};
+  const { name, phone, email, van_size, depot_postcode, driver_type, priority_window_mins } = req.body || {};
   if (!name || !van_size || !depot_postcode) return res.status(400).json({ error: 'Name, van_size, and depot_postcode are required' });
   if (!VAN_DB_VALUES.includes(van_size)) return res.status(400).json({ error: `Invalid van_size. Must be one of: ${VAN_DB_VALUES.join(', ')}` });
+  if (driver_type && !['owner', 'pool'].includes(driver_type)) return res.status(400).json({ error: 'driver_type must be owner or pool' });
+
+  const insertData = { name, phone, email, van_size, depot_postcode };
+  if (driver_type) insertData.driver_type = driver_type;
+  if (priority_window_mins) insertData.priority_window_mins = parseInt(priority_window_mins);
 
   const { data: driver, error } = await sb
     .from('drivers')
-    .insert({ name, phone, email, van_size, depot_postcode })
-    .select('id, name, phone, email, van_size, depot_postcode, online, created_at')
+    .insert(insertData)
+    .select('id, name, phone, email, van_size, depot_postcode, driver_type, priority_window_mins, online, created_at')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -216,7 +222,7 @@ async function handleDriverSetupCode(req, res, sb) {
 async function handleDriverUpdate(req, res, sb) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { driver_id, name, phone, email, van_size, depot_postcode, approval_status, insurance_verified, insurance_expiry, license_verified, dbs_verified, notes } = req.body || {};
+  const { driver_id, name, phone, email, van_size, depot_postcode, approval_status, insurance_verified, insurance_expiry, license_verified, dbs_verified, notes, driver_type, priority_window_mins } = req.body || {};
   if (!driver_id) return res.status(400).json({ error: 'driver_id required' });
 
   const updates = {};
@@ -236,6 +242,15 @@ async function handleDriverUpdate(req, res, sb) {
   if (license_verified !== undefined)   updates.license_verified = license_verified;
   if (dbs_verified !== undefined)       updates.dbs_verified = dbs_verified;
   if (notes !== undefined)              updates.notes = notes || null;
+  if (driver_type !== undefined) {
+    if (!['owner', 'pool'].includes(driver_type)) return res.status(400).json({ error: 'driver_type must be owner or pool' });
+    updates.driver_type = driver_type;
+  }
+  if (priority_window_mins !== undefined) {
+    const mins = parseInt(priority_window_mins);
+    if (isNaN(mins) || mins < 5 || mins > 240) return res.status(400).json({ error: 'priority_window_mins must be 5-240' });
+    updates.priority_window_mins = mins;
+  }
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update' });
 
@@ -515,7 +530,7 @@ async function handleExport(req, res, sb) {
 async function handleConfig(req, res, sb) {
   const [configRes, funnelsRes] = await Promise.all([
     sb.from('platform_config').select('pricing, updated_at').eq('id', 1).single(),
-    sb.from('funnels').select('id, name, slug, depot_postcode, platform_fee_pct').order('name'),
+    sb.from('funnels').select('id, name, slug, depot_postcode, platform_fee_pct, owner_driver_id').order('name'),
   ]);
   res.json({
     pricing: configRes.data?.pricing || {},
@@ -548,7 +563,7 @@ async function handleConfigUpdate(req, res, sb) {
 
 async function handleFunnelUpdate(req, res, sb) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { funnel_id, platform_fee_pct, depot_postcode } = req.body || {};
+  const { funnel_id, platform_fee_pct, depot_postcode, owner_driver_id } = req.body || {};
   if (!funnel_id) return res.status(400).json({ error: 'funnel_id required' });
 
   const updates = {};
@@ -558,6 +573,7 @@ async function handleFunnelUpdate(req, res, sb) {
     updates.platform_fee_pct = pct;
   }
   if (depot_postcode !== undefined) updates.depot_postcode = depot_postcode;
+  if (owner_driver_id !== undefined) updates.owner_driver_id = owner_driver_id || null;
 
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update' });
 
@@ -711,10 +727,14 @@ async function handleCronRun(req, res, sb) {
   const weekEnd   = new Date(lastSun.getTime() + 86400000 - 1).toISOString();
 
   try {
+    // Sweep expired offers and advance dispatch (runs every cron cycle)
+    const sweepResult = await sweepExpiredOffers(sb);
+
     const result = await generateWeeklyInvoices(sb, { weekStart, weekEnd });
     res.json({
       ok: true,
       week: `${lastMon.toISOString().slice(0, 10)} to ${lastSun.toISOString().slice(0, 10)}`,
+      offers_swept: sweepResult.swept,
       ...result,
     });
   } catch (err) {

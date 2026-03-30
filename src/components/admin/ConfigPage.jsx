@@ -107,14 +107,18 @@ export default function ConfigPage() {
   const [saved, setSaved] = useState(false);
   const [funnelSaving, setFunnelSaving] = useState({});
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [drivers, setDrivers] = useState([]);
 
   useEffect(() => {
-    api('/api/admin?action=config', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(d => {
-        setPricing(d.pricing);
-        setFunnels(d.funnels || []);
-        setUpdatedAt(d.updated_at);
+    Promise.all([
+      api('/api/admin?action=config', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      api('/api/admin?action=drivers', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+    ])
+      .then(([configData, driversData]) => {
+        setPricing(configData.pricing);
+        setFunnels(configData.funnels || []);
+        setUpdatedAt(configData.updated_at);
+        setDrivers(driversData.drivers || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -148,7 +152,7 @@ export default function ConfigPage() {
       await api('/api/admin?action=funnel-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ funnel_id: f.id, platform_fee_pct: f.platform_fee_pct, depot_postcode: f.depot_postcode }),
+        body: JSON.stringify({ funnel_id: f.id, platform_fee_pct: f.platform_fee_pct, depot_postcode: f.depot_postcode, owner_driver_id: f.owner_driver_id || null }),
       });
     } catch { /* */ }
     setFunnelSaving(p => ({ ...p, [f.id]: false }));
@@ -235,6 +239,21 @@ export default function ConfigPage() {
                 onChange={e => setFunnels(fs => fs.map(x => x.id === f.id ? { ...x, depot_postcode: e.target.value } : x))}
                 style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
               />
+            </div>
+            <div>
+              <label style={{ ...s.label, fontSize: '0.7rem', display: 'block', marginBottom: '4px' }}>Owner driver</label>
+              <select
+                value={f.owner_driver_id || ''}
+                onChange={e => setFunnels(fs => fs.map(x => x.id === f.id ? { ...x, owner_driver_id: e.target.value || null } : x))}
+                style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+              >
+                <option value="">None (pool only)</option>
+                {drivers.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}{d.driver_type === 'owner' ? ' (owner)' : ''} — {d.depot_postcode}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <button
