@@ -15,10 +15,15 @@ async function loadPrefs() {
   if (prefsReady) return;
   if (Capacitor.isNativePlatform()) {
     try {
-      const mod = await import('@capacitor/preferences');
+      // Race against a timeout — if the plugin import hangs (e.g. remote URL
+      // without native bridge), fall back to localStorage after 500ms
+      const mod = await Promise.race([
+        import('@capacitor/preferences'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 500)),
+      ]);
       Preferences = mod.Preferences;
     } catch {
-      // Plugin not installed — fall back to localStorage
+      // Plugin not installed or timed out — fall back to localStorage
     }
   }
   prefsReady = true;
