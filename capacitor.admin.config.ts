@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
     path: 'android-admin',
   },
   server: {
-    url: 'https://uber-van.vercel.app',
+    url: 'https://uber-van.vercel.app/admin',
     androidScheme: 'https',
   },
 };
