@@ -109,6 +109,8 @@ export default function ConfigPage() {
   const [funnelMsg, setFunnelMsg] = useState({});
   const [updatedAt, setUpdatedAt] = useState(null);
   const [drivers, setDrivers] = useState([]);
+  const [betaPhone, setBetaPhone] = useState('');
+  const [betaMsg, setBetaMsg] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -284,6 +286,49 @@ export default function ConfigPage() {
           </div>
         </div>
       ))}
+
+      {/* ResellerHQ Beta share */}
+      <h2 style={{ ...s.h1, fontSize: '1.1rem', marginTop: '32px', marginBottom: '16px' }}>ResellerHQ Beta</h2>
+      <div style={s.card}>
+        <p style={{ fontSize: '0.85rem', color: colors.muted, marginTop: 0, marginBottom: '16px' }}>
+          Send someone the beta signup link via SMS or copy it to share however you like.
+        </p>
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ ...s.label, fontSize: '0.7rem', display: 'block', marginBottom: '4px' }}>Phone number</label>
+          <input
+            type="tel"
+            placeholder="+44 7..."
+            value={betaPhone}
+            onChange={e => setBetaPhone(e.target.value)}
+            style={{ ...s.input, padding: '8px 10px', fontSize: '0.85rem' }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            onClick={() => {
+              const msg = 'Check out ResellerHQ - tracks your eBay sales and tax so HMRC doesn\'t catch you out.\n\nJoin the beta: https://resell.graft.tools/beta';
+              window.open(`sms:${betaPhone}?body=${encodeURIComponent(msg)}`, '_self');
+              setBetaMsg('Opening messages...');
+              setTimeout(() => setBetaMsg(''), 3000);
+            }}
+            disabled={!betaPhone.trim()}
+            style={{ ...s.btnSmall, opacity: betaPhone.trim() ? 1 : 0.4 }}
+          >
+            Send via SMS
+          </button>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText('https://resell.graft.tools/beta');
+              setBetaMsg('Copied!');
+              setTimeout(() => setBetaMsg(''), 2000);
+            }}
+            style={s.btnOutline}
+          >
+            Copy link
+          </button>
+          {betaMsg && <span style={{ fontSize: '0.8rem', color: colors.accent }}>{betaMsg}</span>}
+        </div>
+      </div>
     </div>
   );
 }
