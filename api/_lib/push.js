@@ -11,7 +11,7 @@ if (!admin.apps.length) {
   });
 }
 
-export async function sendPush(fcmToken, { title, body, data }) {
+export async function sendPush(fcmToken, { title, body, data, channelId = 'job-offers' }) {
   if (!fcmToken) return;
   try {
     await admin.messaging().send({
@@ -21,7 +21,7 @@ export async function sendPush(fcmToken, { title, body, data }) {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'job-offers',
+          channelId,
           sound: 'default',
           icon: 'ic_notification',
         },

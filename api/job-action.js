@@ -8,6 +8,7 @@ import { sendEmail, signBookingLink } from './_lib/email.js';
 import { sendSMS } from './_lib/sms.js';
 import { getVanLabel } from './_lib/vanConfig.js';
 import { advanceDispatch } from './_lib/dispatch.js';
+import { notifyAdmins } from './_lib/adminNotify.js';
 import { checkIdempotency, recordIdempotencyKey } from './_lib/idempotency.js';
 import cors from './_lib/cors.js';
 
@@ -160,6 +161,12 @@ async function handleAccept(req, res, admin, caller) {
       `,
     }).catch(err => console.error('[job-action/accept] Customer email failed:', err));
   }
+
+  notifyAdmins({
+    title: 'Job accepted',
+    body: `${job.pickup_postcode} → ${job.destination_postcode} — ${job.move_date}`,
+    data: { job_id: offer.job_id },
+  }).catch(err => console.error('[job-action/accept] Admin notify failed:', err));
 
   res.json({ ok: true, job });
 }
@@ -326,6 +333,12 @@ async function handleComplete(req, res, admin, caller) {
     }).catch(err => console.error('[job-action/complete] Receipt email failed:', err));
   }
 
+  notifyAdmins({
+    title: 'Job completed',
+    body: `${job.pickup_postcode} → ${job.destination_postcode} — £${finalTotal.toFixed(2)}`,
+    data: { job_id },
+  }).catch(err => console.error('[job-action/complete] Admin notify failed:', err));
+
   const result = { ok: true, final_total_gbp: finalTotal };
   recordIdempotencyKey(admin, job_id, idemKey, result);
   res.json(result);
@@ -359,6 +372,12 @@ async function handleDecline(req, res, admin, caller) {
   advanceDispatch(admin, offer.job_id).catch(err =>
     console.error('[job-action/decline] Dispatch advance failed:', err)
   );
+
+  notifyAdmins({
+    title: 'Offer declined',
+    body: `Driver declined — dispatching next`,
+    data: { job_id: offer.job_id },
+  }).catch(err => console.error('[job-action/decline] Admin notify failed:', err));
 
   res.json({ ok: true });
 }

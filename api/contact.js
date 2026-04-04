@@ -9,6 +9,8 @@ const ALLOWED_ORIGINS = [
   'https://www.packingandremovalsbristol.co.uk',
   'https://packingservicebristol.com',
   'https://www.packingservicebristol.com',
+  'https://graft.tools',
+  'https://www.graft.tools',
 ];
 
 function setCors(req, res) {

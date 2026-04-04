@@ -14,6 +14,7 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from './_lib/auth.js';
 import { sendPush } from './_lib/push.js';
+import { notifyAdmins } from './_lib/adminNotify.js';
 import { advanceDispatch } from './_lib/dispatch.js';
 
 function verifySignature(rawBody, secret, signature) {
@@ -189,6 +190,13 @@ export default async function handler(req, res) {
       console.error('[funnel-webhook] Dispatch advance failed:', err)
     );
   }
+
+  // Notify admins of new job (fire-and-forget)
+  notifyAdmins({
+    title: 'New job created',
+    body: `${body.pickup_postcode} → ${body.destination_postcode} — ${body.move_date} — £${body.customer_quote_gbp}`,
+    data: { job_id: job.id },
+  }).catch(err => console.error('[funnel-webhook] Admin notify failed:', err));
 
   res.json({ ok: true, job_id: job.id });
 }

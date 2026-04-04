@@ -1,5 +1,8 @@
 package app.ubervan.admin;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -20,6 +23,17 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Notification channel for admin alerts
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                "admin-alerts", "Admin Alerts", NotificationManager.IMPORTANCE_HIGH
+            );
+            channel.setDescription("Notifications for new jobs, status changes, and alerts");
+            channel.enableVibration(true);
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(channel);
+        }
 
         // Register JS interface for web <-> native biometric communication
         getBridge().getWebView().post(() -> {

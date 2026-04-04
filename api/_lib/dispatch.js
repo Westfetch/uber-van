@@ -5,6 +5,7 @@
 // Phase 3 (board):   Job visible to all eligible online drivers, first to accept wins
 
 import { sendPush } from './push.js';
+import { notifyAdmins } from './adminNotify.js';
 
 const CASCADE_OFFER_MINS = 5;
 
@@ -208,6 +209,12 @@ export async function escalateToBoard(sb, jobId) {
     payload: {},
     created_by: 'system',
   });
+
+  notifyAdmins({
+    title: 'Job escalated to board',
+    body: 'No driver accepted — job now on open board',
+    data: { job_id: jobId },
+  }).catch(err => console.error('[dispatch] Admin notify failed:', err));
 
   return { phase: 'board' };
 }

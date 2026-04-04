@@ -2,6 +2,7 @@ import { useState } from 'react';
 import api from '../../lib/api.js';
 import { setToken } from '../../lib/tokenStore.js';
 import { enableBiometric } from '../../lib/nativeBiometric.js';
+import { setupAdminPush } from '../../lib/adminPush.js';
 import { colors } from './styles.js';
 import AdminIcon from '../icons/AdminIcon.jsx';
 
@@ -25,6 +26,7 @@ export default function AdminLogin({ onLogin }) {
       if (!res.ok) throw new Error(data.error || 'Login failed');
       await setToken('admin_token', data.token);
       enableBiometric();
+      setupAdminPush();
       onLogin(data.admin);
     } catch (err) {
       setError(err.message);

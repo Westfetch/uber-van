@@ -1,4 +1,4 @@
-// Push notification registration for Capacitor (Android APK).
+// Push notification registration for admin Capacitor APK.
 // No-ops on web — only runs inside the native shell.
 
 import { Capacitor } from '@capacitor/core';
@@ -8,45 +8,36 @@ import { getTokenSync } from './tokenStore.js';
 
 let registered = false;
 
-export async function setupPush() {
+export async function setupAdminPush() {
   if (registered) return;
   if (!Capacitor.isNativePlatform()) return;
 
   try {
     const permission = await PushNotifications.requestPermissions();
-    console.log('[push] permission result:', permission.receive);
     if (permission.receive !== 'granted') return;
 
     await PushNotifications.register();
-    console.log('[push] register() called');
 
     PushNotifications.addListener('registration', async ({ value: fcmToken }) => {
-      console.log('[push] FCM token received');
-      const token = getTokenSync('driver_token');
+      const token = getTokenSync('admin_token');
       if (!token) return;
       try {
-        await api('/api/driver-data?type=register-push', {
+        await api('/api/admin?action=register-push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ fcm_token: fcmToken }),
         });
-        console.log('[push] token saved to backend');
       } catch (err) {
-        console.error('[push] failed to save token:', err);
+        console.error('[admin-push] failed to save token:', err);
       }
     });
 
     PushNotifications.addListener('registrationError', (err) => {
-      console.error('[push] registration error:', err);
-    });
-
-    PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
-      const offerId = notification.data?.offer_id;
-      if (offerId) window.location.href = `/offer/${offerId}`;
+      console.error('[admin-push] registration error:', err);
     });
 
     registered = true;
   } catch (err) {
-    console.error('[push] setupPush failed:', err);
+    console.error('[admin-push] setup failed:', err);
   }
 }
