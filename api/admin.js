@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   const sb = getSupabaseAdmin();
 
   // Audit log for all mutating actions (fire-and-forget)
-  const READ_ACTIONS = ['jobs', 'job', 'drivers', 'driver', 'payouts', 'messages', 'message-replies', 'config', 'invoices', 'invoice-detail', 'export'];
+  const READ_ACTIONS = ['jobs', 'job', 'drivers', 'driver', 'payouts', 'messages', 'message-replies', 'chat-log', 'config', 'invoices', 'invoice-detail', 'export'];
   if (action && !READ_ACTIONS.includes(action)) {
     const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
     sb.from('admin_audit_log').insert({
@@ -60,6 +60,8 @@ export default async function handler(req, res) {
     case 'message-read':   return handleMessageRead(req, res, sb);
     case 'message-reply':  return handleMessageReply(req, res, sb, admin);
     case 'message-replies': return handleMessageReplies(req, res, sb);
+    case 'message-status':  return handleMessageStatus(req, res, sb);
+    case 'chat-log':        return handleChatLog(req, res, sb);
     case 'job-cancel':     return handleJobCancel(req, res, sb);
     case 'job-status-update': return handleJobStatusUpdate(req, res, sb);
     case 'payout-update':  return handlePayoutUpdate(req, res, sb);
@@ -345,7 +347,7 @@ async function handlePayouts(req, res, sb) {
 
 // ── Messages list ─────────────────────────────────────────────────────────────
 async function handleMessages(req, res, sb) {
-  const { read, sort = 'newest', search, source, page = '1', limit = '20' } = req.query;
+  const { read, sort = 'newest', search, source, status, escalation_type, job_type, brand, page = '1', limit = '20' } = req.query;
   const pg     = Math.max(1, parseInt(page));
   const lim    = Math.min(100, Math.max(1, parseInt(limit)));
   const offset = (pg - 1) * lim;
@@ -361,6 +363,10 @@ async function handleMessages(req, res, sb) {
   if (source === 'escalation') query = query.like('source', '%-escalation');
   else if (source === 'contact') query = query.not('source', 'like', '%-escalation');
   else if (source) query = query.eq('source', source);
+  if (status) query = query.eq('status', status);
+  if (escalation_type) query = query.eq('metadata->>escalation_type', escalation_type);
+  if (job_type) query = query.eq('metadata->>job_type', job_type);
+  if (brand) query = query.eq('metadata->>brand', brand);
   if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,message.ilike.%${search}%`);
 
   const { data: messages, count, error } = await query;
@@ -370,8 +376,41 @@ async function handleMessages(req, res, sb) {
   const { count: unread } = await sb.from('messages').select('*', { count: 'exact', head: true }).eq('read', false);
   // Escalation unread count
   const { count: escalationUnread } = await sb.from('messages').select('*', { count: 'exact', head: true }).eq('read', false).like('source', '%-escalation');
+  // Open escalation count
+  const { count: openCount } = await sb.from('messages').select('*', { count: 'exact', head: true }).eq('status', 'open').like('source', '%-escalation');
 
-  res.json({ messages: messages || [], unread: unread || 0, escalationUnread: escalationUnread || 0, total: count || 0, page: pg, pages: Math.ceil((count || 0) / lim) });
+  res.json({ messages: messages || [], unread: unread || 0, escalationUnread: escalationUnread || 0, openCount: openCount || 0, total: count || 0, page: pg, pages: Math.ceil((count || 0) / lim) });
+}
+
+// ── Update message status ──────────────────────────────────────────────────
+async function handleMessageStatus(req, res, sb) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const { id, status } = req.body || {};
+  if (!id || !status) return res.status(400).json({ error: 'id and status required' });
+  if (!['open', 'in_progress', 'resolved'].includes(status))
+    return res.status(400).json({ error: 'status must be open, in_progress, or resolved' });
+
+  const update = { status };
+  if (status === 'resolved' || status === 'in_progress') update.read = true;
+  const { error } = await sb.from('messages').update(update).eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+}
+
+// ── Fetch chat log by session ID ───────────────────────────────────────────
+async function handleChatLog(req, res, sb) {
+  const { session_id } = req.query;
+  if (!session_id) return res.status(400).json({ error: 'session_id required' });
+
+  const { data, error } = await sb
+    .from('chat_logs')
+    .select('session_id, messages, context_block, metadata, created_at, updated_at')
+    .eq('session_id', session_id)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: 'Chat log not found' });
+  res.json(data);
 }
 
 // ── Mark message as read ────────────────────────────────────────────────────
