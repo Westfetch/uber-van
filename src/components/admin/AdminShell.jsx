@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import api from '../../lib/api.js';
 import { getToken, removeToken, getTokenSync } from '../../lib/tokenStore.js';
 import { disableBiometric } from '../../lib/nativeBiometric.js';
+import { setupAdminPush } from '../../lib/adminPush.js';
 import AdminIcon from '../icons/AdminIcon.jsx';
 import { AdminProvider } from './AdminContext.jsx';
 import AdminLogin from './AdminLogin.jsx';
@@ -22,7 +23,7 @@ const NAV = [
   { path: '/admin/drivers', label: 'Drivers' },
   { path: '/admin/payouts',   label: 'Payouts' },
   { path: '/admin/invoices',  label: 'Invoices' },
-  { path: '/admin/messages',  label: 'Messages' },
+  { path: '/admin/messages',  label: 'Inbox' },
   { path: '/admin/config',   label: 'Config' },
 ];
 
@@ -63,6 +64,7 @@ export default function AdminShell() {
         .then(data => {
           if (data?.admin) {
             setAdmin(data.admin);
+            setupAdminPush();
           } else {
             removeToken('admin_token');
           }

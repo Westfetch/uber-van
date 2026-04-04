@@ -73,6 +73,7 @@ export default async function handler(req, res) {
     case 'invoice-fail':       return handleInvoiceFail(req, res, sb);
     case 'generate-invoices':  return handleGenerateInvoices(req, res, sb);
     case 'refund':             return handleRefund(req, res, sb, admin);
+    case 'register-push':      return handleRegisterPush(req, res, sb, admin);
     default:               return res.status(400).json({ error: `Unknown action: ${action}` });
   }
 }
@@ -344,7 +345,7 @@ async function handlePayouts(req, res, sb) {
 
 // ── Messages list ─────────────────────────────────────────────────────────────
 async function handleMessages(req, res, sb) {
-  const { read, sort = 'newest', search, page = '1', limit = '20' } = req.query;
+  const { read, sort = 'newest', search, source, page = '1', limit = '20' } = req.query;
   const pg     = Math.max(1, parseInt(page));
   const lim    = Math.min(100, Math.max(1, parseInt(limit)));
   const offset = (pg - 1) * lim;
@@ -357,15 +358,20 @@ async function handleMessages(req, res, sb) {
 
   if (read === 'true')  query = query.eq('read', true);
   if (read === 'false') query = query.eq('read', false);
+  if (source === 'escalation') query = query.like('source', '%-escalation');
+  else if (source === 'contact') query = query.not('source', 'like', '%-escalation');
+  else if (source) query = query.eq('source', source);
   if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,message.ilike.%${search}%`);
 
   const { data: messages, count, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
 
-  // Unread count
+  // Unread count (across all sources)
   const { count: unread } = await sb.from('messages').select('*', { count: 'exact', head: true }).eq('read', false);
+  // Escalation unread count
+  const { count: escalationUnread } = await sb.from('messages').select('*', { count: 'exact', head: true }).eq('read', false).like('source', '%-escalation');
 
-  res.json({ messages: messages || [], unread: unread || 0, total: count || 0, page: pg, pages: Math.ceil((count || 0) / lim) });
+  res.json({ messages: messages || [], unread: unread || 0, escalationUnread: escalationUnread || 0, total: count || 0, page: pg, pages: Math.ceil((count || 0) / lim) });
 }
 
 // ── Mark message as read ────────────────────────────────────────────────────
@@ -847,6 +853,21 @@ async function handleRefund(req, res, sb, admin) {
     console.error('[admin] Refund failed:', err.message);
     return res.status(500).json({ error: 'Stripe refund failed: ' + err.message });
   }
+}
+
+// ── Register admin push token ────────────────────────────────────────────────
+async function handleRegisterPush(req, res, sb, admin) {
+  if (req.method !== 'POST') return res.status(405).end();
+  const { fcm_token } = req.body || {};
+  if (!fcm_token) return res.status(400).json({ error: 'fcm_token required' });
+
+  const { error } = await sb
+    .from('admins')
+    .update({ fcm_token })
+    .eq('id', admin.id);
+
+  if (error) return res.status(500).json({ error: 'Failed to save token' });
+  res.json({ ok: true });
 }
 
 function sendCSV(res, filename, headers, rows) {
