@@ -9,15 +9,17 @@ const FROM_EMAIL     = process.env.NOTIFY_FROM_EMAIL || 'jobs@uber-van.co.uk';
 const BASE_URL       = process.env.NEXT_PUBLIC_BASE_URL
   || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:5173');
 
-export async function sendEmail({ to, subject, html }) {
+export async function sendEmail({ to, subject, html, replyTo }) {
   if (!RESEND_API_KEY) {
     console.log(`[email] No RESEND_API_KEY: to=${to} subject=${subject}`);
     return;
   }
+  const payload = { from: FROM_EMAIL, to, subject, html };
+  if (replyTo) payload.reply_to = replyTo;
   const res = await fetch('https://api.resend.com/emails', {
     method:  'POST',
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
+    body:    JSON.stringify(payload),
   });
   if (!res.ok) console.error('[email] Resend error:', await res.text());
 }
